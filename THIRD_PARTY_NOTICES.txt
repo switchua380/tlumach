@@ -1,6 +1,11 @@
 Тлумач (Tlumach) — сторонні компоненти / Third-party notices
 =======================================================================
 
+Тлумач © 2026 CallMeBeepMe (SwitchUA). Код програми поширюється за ліцензією GNU GPL v3.0
+(файл LICENSE). Назва «Тлумач», знак «Ї» та іконки під цю ліцензію не підпадають (TRADEMARKS.md).
+Tlumach © 2026 CallMeBeepMe (SwitchUA). Code licensed under GNU GPL v3.0 (LICENSE); name, mark and icons
+are not covered (TRADEMARKS.md).
+
 Програма використовує наведені нижче бібліотеки з відкритим кодом. Вони поширюються
 разом із програмою (папка app\) у незміненому вигляді згідно з їхніми ліцензіями.
 This program ships the open-source libraries listed below, unmodified, under their licenses.

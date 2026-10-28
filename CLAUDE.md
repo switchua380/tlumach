@@ -46,6 +46,10 @@ tools/                 schemagen — генератор tmp_schemas.txt (лиш�
 lib/                   AssetsTools.NET, Cpp2IL, Mono.Cecil … DLL з UABEANext + classdata.tpk (шлях: властивість UabeaDir)
 ```
 
+## Ліцензія
+Код — GPL-3.0-only (LICENSE, рішення автора 2026-10-28). Назва, знак Ї, іконки — TRADEMARKS.md, не GPL.
+У README і «Про програму» чесно вказано: зроблено людиною разом із ШІ (Claude).
+
 ## Збірка
 ```
 cd Launcher

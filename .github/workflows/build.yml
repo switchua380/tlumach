@@ -1,0 +1,44 @@
+# Збірка Windows-пакета Тлумача з цього коду.
+# Запускається вручну (Actions → Build → Run workflow) або при тезі v* (наприклад v1.3).
+# Результат — артефакт Tlumach-win-x64 (непідписаний). Його ж потім підписує SignPath.
+name: Build
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Build (win-x64, Release)
+        working-directory: Launcher
+        run: dotnet build -c Release -r win-x64 -o out-win
+
+      - name: Assemble package
+        run: |
+          set -e
+          PKG=package/Tlumach
+          mkdir -p "$PKG/app"
+          python3 exe/make_exe.py Launcher/out-win/TranslationLauncher.exe "$PKG/Tlumach.exe"
+          cp -r Launcher/out-win/. "$PKG/app/"
+          rm -f "$PKG/app/TranslationLauncher.exe"
+          rm -rf "$PKG/app/data"
+          mkdir -p "$PKG/app/www" && cp Launcher/www/i18n.js "$PKG/app/www/"
+          cp LICENSE TRADEMARKS.md THIRD_PARTY_NOTICES.txt README.md "$PKG/"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Tlumach-win-x64
+          path: package/Tlumach
+          if-no-files-found: error
