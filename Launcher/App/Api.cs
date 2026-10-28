@@ -17,8 +17,8 @@ public static partial class Api
     public static Action? OnExit;
     public const string Version = "1.2.0";
     // links of the «Донат» and «Bugs (Discord)» buttons — fixed by the developers, not editable in Settings
-    public const string DonateUrl = "";
-    public const string BugsUrl = "";
+    public const string DonateUrl = "https://send.monobank.ua/jar/8pM8nifjho";
+    public const string BugsUrl = "https://discord.gg/VUX3EDNsHr";
 
     static readonly JsonSerializerOptions JsOpt = new() { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping, TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver() };
     static HttpServer.Resp J(JsonNode n) => HttpServer.Resp.Json(n.ToJsonString(JsOpt));
