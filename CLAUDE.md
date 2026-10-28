@@ -59,7 +59,7 @@ dotnet build -c Release -o out
 інтерфейс: http://127.0.0.1:47200/?t=TEST
 
 Пакет для користувача: `Tlumach.exe` (apphost, див. exe/) + `app\` (DLL з win-x64 збірки, classdata.tpk, runtimeconfig, deps, www\i18n.js,
-THIRD_PARTY_NOTICES.txt) + `Запуск з консоллю (діагностика).bat` + `README_UA.txt` + `src\`. Потрібен .NET Runtime 8+.
+THIRD_PARTY_NOTICES.txt) + `Запуск з консоллю (діагностика).bat` + `README_UA.txt` + `LICENSE` + `TRADEMARKS.md` (без `src\`: код на GitHub). Збирає GitHub Actions (.github/workflows/build.yml). Потрібен .NET Runtime 8+.
 Папку `app\data\` (settings.json, projects.json, log.txt, window-profile) у пакет НЕ класти.
 
 ## Що вже зроблено (версія 1.2)

@@ -5,6 +5,15 @@
 
 Сайт: https://tlumach.netlify.app · Discord: https://discord.gg/VUX3EDNsHr
 
+## Завантажити
+
+Готова програма — на сторінці [Releases](https://github.com/switchua380/tlumach/releases/latest): завантажте
+`Tlumach-<версія>.zip`, розпакуйте повністю й запустіть `Tlumach.exe`.
+Потрібні Windows 10/11 (64-біт) і [.NET Runtime 8](https://dotnet.microsoft.com/download/dotnet/8.0) x64 або новіший.
+Покрокова інструкція — `README_UA.txt` в архіві.
+
+Помилки й ідеї: [Issues](https://github.com/switchua380/tlumach/issues) або Discord.
+
 ## Як зроблено (чесно)
 
 Тлумач — це «вайбкодинг»: програму зроблено **людиною разом із ШІ-асистентом (Claude від Anthropic)**.
@@ -15,7 +24,7 @@
 - Перед публікацією ми перевірили код на запозичення: коду з UABEA чи TextMeshPro не знайдено, усі сторонні
   бібліотеки під MIT і перелічені в `THIRD_PARTY_NOTICES.txt`.
 
-Якщо знайдете помилку чи схожість із чужим кодом, напишіть нам у Discord або створіть issue.
+Якщо знайдете помилку чи схожість із чужим кодом, напишіть нам у Discord або створіть [issue](https://github.com/switchua380/tlumach/issues).
 
 ## Ліцензія
 
@@ -37,6 +46,7 @@
 - `exe/` — збирання `Tlumach.exe` (стандартний .NET apphost)
 - `lib/` — сторонні бібліотеки (MIT), див. `THIRD_PARTY_NOTICES.txt`
 - `tools/` — генератор `tmp_schemas.txt` (лише для розробки)
+- `packaging/` — файли, що додаються в архів релізу (інструкція, .bat, текст релізу)
 
 ## Збірка
 
@@ -51,6 +61,7 @@ dotnet build -c Release -o out
 dotnet out/TranslationLauncher.dll --port 47200 --token TEST --no-browser --stay
 ```
 
-Інтерфейс: http://127.0.0.1:47200/?t=TEST
+Після цього відкрийте в браузері адресу `http://127.0.0.1:47200/?t=TEST`. Вона працює лише на вашому комп'ютері
+і лише поки запущена команда вище (це локальний сервер програми, а не сайт в інтернеті).
 
 Детальніше про архітектуру й пакування — у `CLAUDE.md` (це робочі нотатки, за якими ШІ-асистент веде проєкт).
