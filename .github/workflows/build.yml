@@ -35,7 +35,9 @@ jobs:
           rm -f "$PKG/app/TranslationLauncher.exe"
           rm -rf "$PKG/app/data"
           mkdir -p "$PKG/app/www" && cp Launcher/www/i18n.js "$PKG/app/www/"
-          cp LICENSE TRADEMARKS.md THIRD_PARTY_NOTICES.txt README.md "$PKG/"
+          cp LICENSE TRADEMARKS.md THIRD_PARTY_NOTICES.txt "$PKG/"
+          cp packaging/README_UA.md "$PKG/README_UA.txt"
+          cp packaging/run-console.bat "$PKG/Запуск з консоллю (діагностика).bat"
 
       - uses: actions/upload-artifact@v4
         with:
