@@ -1,0 +1,161 @@
+Тлумач (Tlumach) — сторонні компоненти / Third-party notices
+=======================================================================
+
+Програма використовує наведені нижче бібліотеки з відкритим кодом. Вони поширюються
+разом із програмою (папка app\) у незміненому вигляді згідно з їхніми ліцензіями.
+This program ships the open-source libraries listed below, unmodified, under their licenses.
+
+Тлумач не пов'язаний із Unity Technologies, UABEA / UABEANext
+чи авторами наведених бібліотек і не схвалений ними. Згадки «як в UABEA» означають лише
+сумісність формату (JSON-дамп) і схожість інтерфейсу. «Unity» і «TextMeshPro» —
+торговельні марки Unity Technologies.
+Not affiliated with or endorsed by Unity Technologies, UABEA / UABEANext or the authors below.
+"Unity" and "TextMeshPro" are trademarks of Unity Technologies.
+
+-----------------------------------------------------------------------
+Component                                   License   Copyright
+-----------------------------------------------------------------------
+AssetsTools.NET, AssetsTools.NET.MonoCecil,  MIT      Copyright (c) 2020 nesrak1
+AssetsTools.NET.Cpp2IL
+  https://github.com/nesrak1/AssetsTools.NET
+  (DLL taken from the UABEANext release: https://github.com/nesrak1/UABEANext, MIT)
+  Includes the LZMA SDK by Igor Pavlov (public domain).
+
+classdata.tpk (Unity type database)         MIT       Copyright (c) 2020 nesrak1
+  from the AssetsTools.NET / UABEA releases; type data originally collected by the
+  AssetRipper project (https://github.com/AssetRipper/Tpk, MIT)
+
+LibCpp2IL, WasmDisassembler (Cpp2IL)         MIT       Copyright (c) 2020 Sam Byass (Samboy063)
+  https://github.com/SamboyCoding/Cpp2IL
+
+AssetRipper.Primitives                       MIT       Copyright (c) 2022-2025 ds5678
+  https://github.com/AssetRipper/AssetRipper.Primitives
+
+Mono.Cecil, Mono.Cecil.Rocks,                MIT       Copyright (c) 2008 - 2015 Jb Evain
+Mono.Cecil.Pdb, Mono.Cecil.Mdb                         Copyright (c) 2008 - 2011 Novell, Inc.
+  https://github.com/jbevain/cecil
+
+Built-in TextMeshPro layouts (TMPFontReplacer\tmp_schemas.txt) contain only the names and
+types of serialized fields of TMP_FontAsset, needed to read and write game files
+(interoperability). No TextMeshPro source code is included in this program.
+
+Fixel Text, Fixel Display (fonts,           OFL-1.1   Copyright 2023 MacPaw Inc.
+  app\www\Fixel*.woff2, built into the DLL)            (Authors: AlfaBravo + MacPaw)
+  https://fixel.macpaw.com   https://github.com/MacPaw/Fixel
+  Designers: Kyrylo Tkachov, Marchela Mozhyna, Serhii Makarenko, Maria Weinstein,
+  Zakhar Kryvoshyya. Full license text at the end of this file.
+
+-----------------------------------------------------------------------
+MIT License (applies to every MIT component above, with its own copyright line)
+-----------------------------------------------------------------------
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+-----------------------------------------------------------------------
+SIL Open Font License, Version 1.1 (applies to Fixel Text and Fixel Display)
+-----------------------------------------------------------------------
+
+Copyright 2023 MacPaw Inc. (Authors: AlfaBravo + MacPaw)
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+This license is copied below, and is also available with a FAQ at:
+https://openfontlicense.org
+
+PREAMBLE
+The goals of the Open Font License (OFL) are to stimulate worldwide
+development of collaborative font projects, to support the font creation
+efforts of academic and linguistic communities, and to provide a free and
+open framework in which fonts may be shared and improved in partnership
+with others.
+
+The OFL allows the licensed fonts to be used, studied, modified and
+redistributed freely as long as they are not sold by themselves. The
+fonts, including any derivative works, can be bundled, embedded,
+redistributed and/or sold with any software provided that any reserved
+names are not used by derivative works. The fonts and derivatives,
+however, cannot be released under any other type of license. The
+requirement for fonts to remain under this license does not apply
+to any document created using the fonts or their derivatives.
+
+DEFINITIONS
+"Font Software" refers to the set of files released by the Copyright
+Holder(s) under this license and clearly marked as such. This may
+include source files, build scripts and documentation.
+
+"Reserved Font Name" refers to any names specified as such after the
+copyright statement(s).
+
+"Original Version" refers to the collection of Font Software components as
+distributed by the Copyright Holder(s).
+
+"Modified Version" refers to any derivative made by adding to, deleting,
+or substituting -- in part or in whole -- any of the components of the
+Original Version, by changing formats or by porting the Font Software to a
+new environment.
+
+"Author" refers to any designer, engineer, programmer, technical
+writer or other person who contributed to the Font Software.
+
+PERMISSION & CONDITIONS
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of the Font Software, to use, study, copy, merge, embed, modify,
+redistribute, and sell modified and unmodified copies of the Font
+Software, subject to the following conditions:
+
+1) Neither the Font Software nor any of its individual components,
+in Original or Modified Versions, may be sold by itself.
+
+2) Original or Modified Versions of the Font Software may be bundled,
+redistributed and/or sold with any software, provided that each copy
+contains the above copyright notice and this license. These can be
+included either as stand-alone text files, human-readable headers or
+in the appropriate machine-readable metadata fields within text or
+binary files as long as those fields can be easily viewed by the user.
+
+3) No Modified Version of the Font Software may use the Reserved Font
+Name(s) unless explicit written permission is granted by the corresponding
+Copyright Holder. This restriction only applies to the primary font name as
+presented to the users.
+
+4) The name(s) of the Copyright Holder(s) and the Author(s) of the Font
+Software shall not be used to promote, endorse or advertise any
+Modified Version, except to acknowledge the contribution(s) of the
+Copyright Holder(s) and the Author(s) or with their explicit written
+permission.
+
+5) The Font Software, modified or unmodified, in part or in whole,
+must be distributed entirely under this license, and must not be
+distributed under any other license. The requirement for fonts to
+remain under this license does not apply to any document created
+using the Font Software.
+
+TERMINATION
+This license becomes null and void if any of the above conditions are
+not met.
+
+DISCLAIMER
+THE FONT SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT
+OF COPYRIGHT, PATENT, TRADEMARK, OR OTHER RIGHT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL
+DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
+OTHER DEALINGS IN THE FONT SOFTWARE.

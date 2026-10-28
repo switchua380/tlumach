@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- AssetsTools.NET / Cpp2IL / Mono.Cecil DLLs (taken from UABEANext) and classdata.tpk -->
+    <UabeaDir Condition="'$(UabeaDir)' == ''">$(MSBuildThisFileDirectory)../lib/</UabeaDir>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RollForward>Major</RollForward>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>TranslationLauncher</AssemblyName>
+    <RootNamespace>TranslationLauncher</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- RollForward=Major may run this on a newer .NET: keep reflection-based System.Text.Json on -->
+    <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <Product>Тлумач (Tlumach)</Product>
+    <AssemblyTitle>Тлумач (Tlumach)</AssemblyTitle>
+    <Description>Тлумач — програма для перекладу Unity-ігор українською</Description>
+    <Company>CallMeBeepMe</Company>
+    <Copyright>© CallMeBeepMe</Copyright>
+    <Version>1.2.0</Version>
+    <!-- no build-machine paths inside the DLL (pdb path, source paths) -->
+    <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
+    <PathMap>$(MSBuildProjectDirectory)=.</PathMap>
+    <Deterministic>true</Deterministic>
+    <NoWarn>CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625;CS8619;CS8620</NoWarn>
+  </PropertyGroup>
+  <!-- Windows package: the standard .NET apphost becomes Tlumach.exe (see ../exe/make_exe.py), no custom launcher -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+    <OutputType>WinExe</OutputType>
+    <UseAppHost>true</UseAppHost>
+    <SelfContained>false</SelfContained>
+    <ApplicationIcon>../exe/icon.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../TMPFontReplacer/TrueTypeFont.cs;../TMPFontReplacer/AtlasBuilder.cs;../TMPFontReplacer/Png.cs;../TMPFontReplacer/FontPatcher.cs;../TMPFontReplacer/LegacyBundle.cs;../TMPFontReplacer/SchemaFallback.cs;../TMPFontReplacer/Report.cs;../TMPFontReplacer/FontPairs.cs" />
+    <EmbeddedResource Include="../TMPFontReplacer/tmp_schemas.txt" LogicalName="TMPFontReplacer.tmp_schemas.txt" />
+    <EmbeddedResource Include="www/**/*" LogicalName="www.%(RecursiveDir)%(Filename)%(Extension)" />
+    <Reference Include="AssetsTools.NET"><HintPath>$(UabeaDir)AssetsTools.NET.dll</HintPath></Reference>
+    <Reference Include="AssetsTools.NET.MonoCecil"><HintPath>$(UabeaDir)AssetsTools.NET.MonoCecil.dll</HintPath></Reference>
+    <Reference Include="AssetsTools.NET.Cpp2IL"><HintPath>$(UabeaDir)AssetsTools.NET.Cpp2IL.dll</HintPath></Reference>
+    <Reference Include="Mono.Cecil"><HintPath>$(UabeaDir)Mono.Cecil.dll</HintPath></Reference>
+    <Reference Include="Mono.Cecil.Rocks"><HintPath>$(UabeaDir)Mono.Cecil.Rocks.dll</HintPath></Reference>
+    <Reference Include="Mono.Cecil.Pdb"><HintPath>$(UabeaDir)Mono.Cecil.Pdb.dll</HintPath></Reference>
+    <Reference Include="Mono.Cecil.Mdb"><HintPath>$(UabeaDir)Mono.Cecil.Mdb.dll</HintPath></Reference>
+    <Reference Include="LibCpp2IL"><HintPath>$(UabeaDir)LibCpp2IL.dll</HintPath></Reference>
+    <Reference Include="AssetRipper.Primitives"><HintPath>$(UabeaDir)AssetRipper.Primitives.dll</HintPath></Reference>
+    <Reference Include="WasmDisassembler"><HintPath>$(UabeaDir)WasmDisassembler.dll</HintPath></Reference>
+    <None Include="$(UabeaDir)classdata.tpk" CopyToOutputDirectory="PreserveNewest" Link="classdata.tpk" />
+    <None Include="../THIRD_PARTY_NOTICES.txt" CopyToOutputDirectory="PreserveNewest" Link="THIRD_PARTY_NOTICES.txt" />
+  </ItemGroup>
+</Project>

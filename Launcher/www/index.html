@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="uk" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Тлумач</title>
+<link rel="icon" type="image/png" href="icon.png">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="topbar">
+  <select id="projectSelect" class="project-select" title=""></select>
+  <div class="toolbar" id="toolbar">
+    <button data-act="undo" class="tb ed-only" data-i18n-title="t_undo"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5 M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>
+    <button data-act="redo" class="tb ed-only" data-i18n-title="t_redo"><svg viewBox="0 0 24 24"><path d="m15 14 5-5-5-5 M20 9H10a6 6 0 0 0 0 12h3"/></svg></button>
+    <button data-act="save" class="tb primary" data-i18n-title="t_save"><svg viewBox="0 0 24 24"><path d="M5 3h11l3 3v15H5z M8 3v6h8V3 M8 14h8v7H8z"/></svg><span data-i18n="save">Зберегти</span></button>
+  </div>
+</header>
+
+<nav class="sidebar" id="nav">
+  <div class="brand side-brand"><svg class="logo" viewBox="8 6 82 84" aria-hidden="true"><path class="t" d="M18 8H62L88 34V80Q88 88 80 88H18Q10 88 10 80V16Q10 8 18 8Z" fill="#F3ECDD"/><path class="i" d="M62 8V28Q62 34 68 34H88Z" fill="#221D45" fill-opacity=".35"/><rect class="i" x="28" y="18" width="16" height="16" fill="#221D45"/><rect class="dot-mark" x="52" y="18" width="16" height="16" fill="#D8453A"/><path class="i" d="M30 40H66V49H57V69H66V78H30V69H39V49H30Z" fill="#221D45"/></svg><span class="brand-name"><span data-i18n="appName">Тлумач</span><small class="by">by SwitchUA</small></span></div>
+  <div class="nav-label" data-i18n="nav_steps">Переклад гри</div>
+  <a data-page="projects" class="step"><i class="step-n">1</i><span><span data-i18n="step_projects"></span><small data-i18n="stepsub_projects"></small></span></a>
+  <a data-page="auto" class="step"><i class="step-n">2</i><span><span data-i18n="step_auto"></span><small data-i18n="stepsub_auto"></small></span></a>
+  <a data-page="editor" class="step"><i class="step-n">3</i><span><span data-i18n="step_editor"></span><small data-i18n="stepsub_editor"></small></span><b id="dirtyDot" class="dot hidden"></b></a>
+  <a data-page="fonts" class="step"><i class="step-n">4</i><span><span data-i18n="step_fonts"></span><small data-i18n="stepsub_fonts"></small></span></a>
+  <a data-page="changes" class="step"><i class="step-n">5</i><span><span data-i18n="step_changes"></span><small data-i18n="stepsub_changes"></small></span></a>
+  <a data-page="pack" class="step"><i class="step-n">6</i><span><span data-i18n="step_pack"></span><small data-i18n="stepsub_pack"></small></span></a>
+  <div class="nav-label" data-i18n="nav_other" style="margin-top:14px">Інше</div>
+  <a data-page="settings"><svg viewBox="0 0 24 24"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z M12 2v3 M12 19v3 M2 12h3 M19 12h3 M4.9 4.9l2.1 2.1 M17 17l2.1 2.1 M4.9 19.1 7 17 M17 7l2.1-2.1"/></svg><span data-i18n="nav_settings">Налаштування</span></a>
+  <a data-page="help"><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5V14 M12 17h.01"/></svg><span data-i18n="nav_help">Довідка</span></a>
+  <div class="nav-spacer"></div>
+  <button class="side-donate" data-act="donate" data-i18n-title="t_donate"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg><span data-i18n="donate">Донат</span></button>
+  <div class="side-tools">
+    <button data-act="log" data-i18n-title="nav_log"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z M8 8h8 M8 12h8 M8 16h5"/></svg><b id="errBadge" class="badge hidden">0</b></button>
+    <button data-act="about" data-i18n-title="nav_about"><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M12 11v6 M12 7.5h.01"/></svg></button>
+    <button data-act="bugs" data-i18n-title="t_bugs"><svg viewBox="0 0 24 24"><path d="M8 8a4 4 0 0 1 8 0v1H8z M7 10h10v5a5 5 0 0 1-10 0z M12 10v10 M3 13h4 M17 13h4 M4 8l3 2 M20 8l-3 2 M4 19l3-2 M20 19l-3-2"/></svg></button>
+    <button data-act="exit" class="danger" data-i18n-title="t_exit"><svg viewBox="0 0 24 24"><path d="M10 4H5v16h5 M15 8l4 4-4 4 M19 12H9"/></svg></button>
+  </div>
+</nav>
+
+<main id="main"></main>
+
+<footer class="statusbar">
+  <div id="jobBox" class="jobbox hidden">
+    <span id="jobName"></span>
+    <div class="progress"><div id="jobBar"></div></div>
+    <span id="jobPct"></span>
+    <span id="jobMsg" class="jobmsg"></span>
+    <span class="job-btns" id="jobBtns">
+      <button data-act="pause" class="tb sm" data-i18n-title="t_pause"><svg viewBox="0 0 24 24"><path d="M7 4h4v16H7zM13 4h4v16h-4z"/></svg></button>
+      <button data-act="resume" class="tb sm" data-i18n-title="t_resume"><svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></svg></button>
+      <button data-act="stop" class="tb sm danger" data-i18n-title="t_stop"><svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg></button>
+    </span>
+  </div>
+  <div id="statusText" class="status-text"></div>
+  <div class="spacer"></div>
+  <span id="archInfo" class="muted"></span>
+</footer>
+
+<div id="dropOverlay" class="drop-overlay hidden"><div data-i18n="dropHere">Відпустіть файл, щоб імпортувати</div></div>
+<div id="modalRoot"></div>
+<div id="toastRoot" class="toasts"></div>
+<script src="i18n.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

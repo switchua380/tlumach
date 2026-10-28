@@ -1,0 +1,28 @@
+# Збірки .NET
+bin/
+obj/
+out/
+out-*/
+publish/
+*.pdb
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# Робочі дані програми (налаштування, проєкти, журнал)
+data/
+app/data/
+Workspaces/
+
+# Дані ігор і пакети
+*_Data/
+*_Data.zip
+*.zip
+
+# Система
+.DS_Store
+Thumbs.db

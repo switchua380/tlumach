@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <UabeaDir Condition="'$(UabeaDir)' == ''">$(MSBuildThisFileDirectory)../lib/</UabeaDir>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>TMPFontReplacer</AssemblyName>
+    <RootNamespace>TMPFontReplacer</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <NoWarn>CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="AssetsTools.NET"><HintPath>$(UabeaDir)AssetsTools.NET.dll</HintPath></Reference>
+    <Reference Include="AssetsTools.NET.MonoCecil"><HintPath>$(UabeaDir)AssetsTools.NET.MonoCecil.dll</HintPath></Reference>
+    <Reference Include="AssetsTools.NET.Cpp2IL"><HintPath>$(UabeaDir)AssetsTools.NET.Cpp2IL.dll</HintPath></Reference>
+    <Reference Include="Mono.Cecil"><HintPath>$(UabeaDir)Mono.Cecil.dll</HintPath></Reference>
+    <Reference Include="Mono.Cecil.Rocks"><HintPath>$(UabeaDir)Mono.Cecil.Rocks.dll</HintPath></Reference>
+    <Reference Include="Mono.Cecil.Pdb"><HintPath>$(UabeaDir)Mono.Cecil.Pdb.dll</HintPath></Reference>
+    <Reference Include="Mono.Cecil.Mdb"><HintPath>$(UabeaDir)Mono.Cecil.Mdb.dll</HintPath></Reference>
+    <Reference Include="LibCpp2IL"><HintPath>$(UabeaDir)LibCpp2IL.dll</HintPath></Reference>
+    <Reference Include="AssetRipper.Primitives"><HintPath>$(UabeaDir)AssetRipper.Primitives.dll</HintPath></Reference>
+    <Reference Include="WasmDisassembler"><HintPath>$(UabeaDir)WasmDisassembler.dll</HintPath></Reference>
+    <None Include="$(UabeaDir)classdata.tpk" CopyToOutputDirectory="PreserveNewest" Link="classdata.tpk" />
+    <EmbeddedResource Include="tmp_schemas.txt" LogicalName="TMPFontReplacer.tmp_schemas.txt" />
+    <None Include="../THIRD_PARTY_NOTICES.txt" CopyToOutputDirectory="PreserveNewest" Link="THIRD_PARTY_NOTICES.txt" />
+  </ItemGroup>
+</Project>
