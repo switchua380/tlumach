@@ -136,7 +136,7 @@ THIRD_PARTY_NOTICES.txt) + `Запуск з консоллю (діагности
 - Підказки при наведенні: `window.TIPS` (uk/en) унизу i18n.js, ключі = ключі I18N. app.js (`addTips`/`tipFor`) сам знаходить елементи з таким текстом (або placeholder) через MutationObserver і ставить `data-tip`; `title` теж перетворюється на стилізовану підказку (`.tipbox`). Кнопкові дії лише на кнопках (TIP_BUTTON_ONLY), назви кроків — лише в бічній панелі.
 - Крок 6 «Зібрати архів» (page `pack`): `GET /api/pack` (прев'ю), `POST /api/pack` (job). Архів `<Гра>_Data.zip` у папці експорту: усі файли з modified/ під папкою *_Data, за шляхами гри (зразок — Discounty_Data.zip від авторки). Файли поза *_Data не додаються (показуються як пропущені).
 
-## Ручна заміна і прискорення (2026-10-29)
+## Версія 1.3: ручна заміна і прискорення (2026-10-29)
 - Ручний пошук: галочки на файлах дерева (`S.manual.checked`) → `replaceFiles(rels)`: один файл — `pickPath` файлу, кілька — папка +
   `POST /api/file/replace/match` (та сама назва; спершу сама папка, далі підпапки). `POST /api/file/replace` (job, `ReplaceFiles` у Batch.cs):
   Docs.Close, BackupOriginal, копія в modified/, PatchCatalogs, далі askApply як у збереженні.
