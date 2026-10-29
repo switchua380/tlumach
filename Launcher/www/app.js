@@ -877,7 +877,7 @@ async function batchAnalyze() {
       if (j.status !== "done" || !j.result) return;
       S.batch.items = j.result.items; S.batch.need = j.result.needDecision; S.batch.analyzed = true;
       if (S.page === "batch") drawBatch();
-      const work = S.batch.items.filter(i => i.include && i.target && (i.content === "translation"));
+      const work = S.batch.items.filter(i => i.include && i.target && (i.content === "translation" || i.content === "wholefile"));
       const warn = S.batch.items.filter(i => i.include && ["similar", "renamed"].includes(i.status));
       if (warn.length) toast(t("batchWarnSimilar") + ": " + warn.map(i => i.name).join(", "), "warn");
       // nothing to decide: same structure everywhere → replace right away (as asked), the report lists everything
@@ -965,7 +965,7 @@ async function pickNewPlace(it) {
 }
 
 const BATCH_STATUS = { exact: "ok", moved: "ok", renamed: "warn", similar: "warn", notfound: "err", newfile: "ok", new: "" };
-const BATCH_CONTENT = { identical: "ok", translation: "ok", different: "warn", unknown: "err", error: "err", newfile: "ok" };
+const BATCH_CONTENT = { identical: "ok", translation: "ok", wholefile: "ok", different: "warn", unknown: "err", error: "err", newfile: "ok" };
 function pBatch(m) {
   if (!needProject()) return;
   m.innerHTML = `<h1>${esc(t("nav_batch"))}</h1><div class="sub">${esc(t("batch_sub"))}</div>
@@ -983,7 +983,7 @@ function drawBatch() {
   const def = { k: "name", d: 1 };
   const rows = sortRows("batch", items, {
     name: i => i.name, target: i => i.target ? i.target.name : "", status: i => ["notfound", "similar", "renamed", "moved", "exact", "newfile"].indexOf(i.status),
-    content: i => ["error", "unknown", "different", "translation", "identical"].indexOf(i.content), size: i => i.size,
+    content: i => ["error", "unknown", "different", "wholefile", "translation", "identical"].indexOf(i.content), size: i => i.size,
   }, def);
   let html = "";
   if (B.result) html += `<div class="card" style="border-color:var(--ok)"><div class="row"><b class="grow">✔ ${esc(t("batchDone"))}: ${B.result.ok} · ${esc(t("batchSkipped"))}: ${B.result.skipped} · ${esc(t("batchFailed"))}: ${B.result.failed}</b>
