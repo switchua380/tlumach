@@ -13,6 +13,7 @@ on:
         default: ""
   push:
     tags: ["v*"]
+  pull_request:   # тестова збірка для кожного PR (артефакт Tlumach-win-x64, без релізу)
 
 permissions:
   contents: write
