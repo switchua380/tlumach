@@ -30,6 +30,16 @@ window.I18N = {
     results: "Результати", score: "Бали", kind: "Тип", file: "Файл", asset: "Ассет", matches: "Збіги", filter: "Фільтр…",
     noResults: "Ще немає результатів. Натисніть «Почати пошук».", lastScan: "Останній пошук",
     manual_title: "Ручний пошук", manual_sub: "Перегляд файлів гри як в UABEA: відкрийте файл, виберіть ассет, редагуйте, експортуйте або імпортуйте.",
+    replPick: "Позначити для заміни цілим файлом", replChecked: "Позначено файлів", replFiles: "Замінити файли цілком…", selNone: "Зняти вибір", selAll: "Вибрати все",
+    replHint: "Поставте галочки біля бандлів / файлів, щоб замінити їх цілими файлами.", replFolderText: "Файли з такими самими назвами в папці (спершу в самій папці, потім у підпапках). Ненайдені пропускаються.",
+    replFrom: "Ваш файл", replNoFile: "немає в папці", replGo: "Замінити", replDone: "Замінено файлів",
+    replDirty: "У цих файлах є незбережені зміни — після заміни вони пропадуть. Продовжити?", replOneQ: "Замінити файл гри цілком?\n\n{f}\n← {s}\n\nОригінал збережеться (повернути: крок 5 → «Мої зміни»).",
+    replWhole: "Замінити весь файл…", replWholeTip: "Замінити цей бандл / файл гри вашим файлом цілком (оригінал зберігається)",
+    assetsPicked: "Вибрано ассетів", impMany: "Імпортувати у вибрані…", impManyTip: "Вибрати багато файлів: кожен піде в ассет з тією ж назвою (або PathID у назві файлу). Один файл + один ассет — напряму.",
+    impNoMatch: "Жоден файл не підійшов до вибраних ассетів. Назви файлів мають збігатися з назвами ассетів (як при експорті з UABEA або лаунчера).", impSomeNoMatch: "Файлів без пари", impNoFile: "Вибраних ассетів без файлу",
+    busy: "Працюю…", indexBuilding: "Програма ще індексує гру (знайдено {n}) — список доповнюється сам.",
+    batchUseTarget: "Вибрати це місце", batchTargetSet: "Ціль вибрано", batchApplyOneQ: "Замінити «{f}» у вибраному місці зараз?\n\n{t}",
+    batchApplyNow: "Замінити зараз", batchLater: "Пізніше", batchQueued: "Заміну буде виконано, щойно закінчиться поточна операція.",
     gameFiles: "Файли гри", assets: "Ассети", type: "Тип", name: "Назва", script: "Скрипт", size: "Розмір", allTypes: "Усі типи",
     selectFile: "Виберіть файл ліворуч", notUnity: "Це не файл Unity — відкрийте його в редакторі як текст.",
     edit: "Редагувати", viewDump: "Дамп", export: "Експорт", import: "Імпорт", findText: "Знайти текст у всіх файлах…", find: "Знайти",
@@ -103,7 +113,7 @@ window.I18N = {
     openModified: "Папка modified", openOriginal: "Папка original", openExports: "Папка експорту",
     log_title: "Журнал", onlyErrors: "Лише помилки", clear: "Очистити",
     nav_steps: "Переклад гри", nav_other: "Інше", stepOf: "Крок {n} з {m}", stepNext: "Далі", more: "Ще", continue: "Продовжити",
-    step_projects: "Гра", step_auto: "Знайти тексти", step_editor: "Перекласти", step_fonts: "Шрифти", step_changes: "Встановити в гру",
+    step_projects: "Гра", step_auto: "Знайти тексти", step_editor: "Перекласти", step_fonts: "Шрифти", step_changes: "Вбудувати в гру",
     stepsub_projects: "Виберіть папку гри", stepsub_auto: "Автоматично або вручну", stepsub_editor: "Редагуйте рядки",
     stepsub_fonts: "Якщо немає кирилиці", stepsub_changes: "Перенесіть файли в гру",
     step_pack: "Зібрати архів", stepsub_pack: "Переклад для інших гравців",
@@ -158,6 +168,16 @@ window.I18N = {
     results: "Results", score: "Score", kind: "Kind", file: "File", asset: "Asset", matches: "Matches", filter: "Filter…",
     noResults: "No results yet. Press “Start search”.", lastScan: "Last search",
     manual_title: "Manual search", manual_sub: "Browse game files like UABEA: open a file, pick an asset, edit, export or import.",
+    replPick: "Mark to replace as a whole file", replChecked: "Files marked", replFiles: "Replace whole files…", selNone: "Clear selection", selAll: "Select all",
+    replHint: "Tick bundles / files to replace them with whole files.", replFolderText: "Files with the same names in the folder (first the folder itself, then subfolders). Missing ones are skipped.",
+    replFrom: "Your file", replNoFile: "not in folder", replGo: "Replace", replDone: "Files replaced",
+    replDirty: "These files have unsaved edits — they will be lost after the replacement. Continue?", replOneQ: "Replace the game file as a whole?\n\n{f}\n← {s}\n\nThe original is kept (restore: step 5 → “My changes”).",
+    replWhole: "Replace whole file…", replWholeTip: "Replace this bundle / game file with your file as a whole (the original is kept)",
+    assetsPicked: "Assets selected", impMany: "Import into selected…", impManyTip: "Pick many files: each goes into the asset with the same name (or PathID in the file name). One file + one asset — directly.",
+    impNoMatch: "No file matched the selected assets. File names must match asset names (as exported by UABEA or the launcher).", impSomeNoMatch: "Files without a match", impNoFile: "Selected assets without a file",
+    busy: "Working…", indexBuilding: "Still indexing the game ({n} found) — the list updates by itself.",
+    batchUseTarget: "Use this place", batchTargetSet: "Target chosen", batchApplyOneQ: "Replace “{f}” at the chosen place now?\n\n{t}",
+    batchApplyNow: "Replace now", batchLater: "Later", batchQueued: "The replacement starts as soon as the current operation ends.",
     gameFiles: "Game files", assets: "Assets", type: "Type", name: "Name", script: "Script", size: "Size", allTypes: "All types",
     selectFile: "Select a file on the left", notUnity: "Not a Unity file — open it in the editor as text.",
     edit: "Edit", viewDump: "Dump", export: "Export", import: "Import", findText: "Find text in all files…", find: "Find",
@@ -231,7 +251,7 @@ window.I18N = {
     openModified: "Open modified", openOriginal: "Open original", openExports: "Open exports",
     log_title: "Log", onlyErrors: "Errors only", clear: "Clear",
     nav_steps: "Translate a game", nav_other: "Other", stepOf: "Step {n} of {m}", stepNext: "Next", more: "More", continue: "Continue",
-    step_projects: "Game", step_auto: "Find texts", step_editor: "Translate", step_fonts: "Fonts", step_changes: "Install into game",
+    step_projects: "Game", step_auto: "Find texts", step_editor: "Translate", step_fonts: "Fonts", step_changes: "Embed into game",
     stepsub_projects: "Pick the game folder", stepsub_auto: "Automatically or by hand", stepsub_editor: "Edit the lines",
     stepsub_fonts: "If Cyrillic is missing", stepsub_changes: "Copy files into the game",
     step_pack: "Build archive", stepsub_pack: "Translation for other players",
@@ -271,9 +291,9 @@ window.HELP = {
 <li><b>2. Знайти тексти</b> (вкладка «Автопошук») → «Почати пошук». Програма знайде StringTable (Unity Localization), I2 Languages, TextAsset, JSON/TXT-файли тощо. Можна додати власні ключові слова.</li>
 <li>Двічі клацніть результат — він відкриється в <b>Редакторі</b>. Редагуйте прямо в таблиці або експортуйте в TXT / JSON / CSV, перекладіть і імпортуйте назад (кнопка «Імпорт» або просто перетягніть файл у вікно).</li>
 <li><b>Зберегти</b> (Ctrl+Shift+S): змінений файл записується в робочу папку <i>modified</i>, оригінал — у <i>original</i>. Потім програма запитає, чи замінити файл у грі.</li>
-<li><b>5. Встановити в гру → «Готові файли перекладу»</b>: перетягніть файли перекладу (JSON-дампи UABEA, .dat, експорт лаунчера, текстові файли гри) у будь-яке місце вікна — програма сама знайде їхнє місце в ассетах і бандлах. Якщо назва лише схожа (стара версія гри), ви побачите попередження. Якщо відрізняється лише текст — файли замінюються одразу; якщо відрізняється структура — програма запитає: оновити до актуальної версії, лише перевірити або нічого не робити. Звіт про всі зміни зберігається в папку reports.</li>
+<li><b>5. Вбудувати в гру → «Готові файли перекладу»</b>: перетягніть файли перекладу (JSON-дампи UABEA, .dat, експорт лаунчера, текстові файли гри) у будь-яке місце вікна — програма сама знайде їхнє місце в ассетах і бандлах. Якщо назва лише схожа (стара версія гри), ви побачите попередження. Якщо відрізняється лише текст — файли замінюються одразу; якщо відрізняється структура — програма запитає: оновити до актуальної версії, лише перевірити або нічого не робити. Звіт про всі зміни зберігається в папку reports.</li>
 <li><b>4. Шрифти</b> (за потреби): виберіть .ttf і натисніть «Знайти шрифти в грі». Шрифт TMP — це пара MonoBehaviour + атлас Texture2D (наприклад «Arial SDF» + «Arial SDF Atlas»): програма шукає саме такі пари — за посиланням усередині шрифту і за спільною назвою. Атлас без MonoBehaviour шрифтом не вважається. Натисніть на назву шрифту, щоб побачити його атлас (можна порівняти з оригіналом і зберегти PNG). Потім «Створити й вбудувати шрифт» — звіт покаже, яких символів бракує.</li>
-<li><b>5. Встановити в гру → «Мої зміни»</b>: вбудувати все в гру або повернути оригінали однією кнопкою.</li>
+<li><b>5. Вбудувати в гру → «Мої зміни»</b>: вбудувати все в гру або повернути оригінали однією кнопкою.</li>
 <li><b>6. Зібрати архів</b>: zip з усіма зміненими файлами (і каталогом) на своїх місцях, починаючи з папки <code>&lt;Гра&gt;_Data</code>. Його можна передати гравцям чи іншим локалізаторам: досить розпакувати в папку гри із заміною.</li></ol>
 <h3>Ручний пошук (крок 2, вкладка «Ручний пошук»)</h3><p>Як в UABEA: дерево файлів гри → список ассетів (тип, назва, PathID) → «Редагувати», «Дамп», «Експорт» (TXT, JSON, CSV, дамп JSON як в UABEA, raw .dat), «Імпорт». Кнопка «Знайти текст у всіх файлах» шукає рядок у всіх ассетах.</p>
 <h3>Керування</h3><ul><li>Гарячі клавіші (Ctrl+S, Ctrl+Shift+S, Ctrl+G, Ctrl+Z, Ctrl+X, F1…) можна змінити в «Налаштуваннях».</li><li>Пауза / Продовжити / Стоп з'являються внизу, у рядку стану, поки триває довга операція (пошук, створення шрифту). Журнал, «Про програму», Донат і Discord — маленькі кнопки внизу бічної панелі.</li><li>Відмінити / Повторити — останні зміни в редакторі (Ctrl+Z / Ctrl+X). Поки ви друкуєте в полі, Ctrl+Z відміняє набраний текст.</li><li>Швидке збереження (Ctrl+S) — зберігає все без запитань.</li><li>Журнал — усі дії й помилки (також у файлі data/log.txt).</li></ul>
@@ -283,9 +303,9 @@ window.HELP = {
 <li><b>2. Find texts</b> (“Auto search” tab) → “Start search”. Finds StringTables (Unity Localization), I2 Languages, TextAssets, JSON/TXT files etc. You can add your own keywords.</li>
 <li>Double-click a result to open it in the <b>Editor</b>. Edit in the table or export to TXT / JSON / CSV, translate and import back (“Import” button or drop the file onto the window).</li>
 <li><b>Save</b> (Ctrl+Shift+S): the changed file goes to the <i>modified</i> work folder, the original to <i>original</i>. Then you are asked whether to replace the file in the game.</li>
-<li><b>5. Install into game → “Ready translation files”</b>: drop translation files (UABEA JSON dumps, .dat, launcher exports, game text files) anywhere in the window — the launcher finds their place in assets and bundles. If only a similar name is found (older game version) you get a warning. If only the text differs the files are replaced at once; if the structure differs you are asked: update to the current version, check only, or do nothing. A report of all changes is saved to the reports folder.</li>
+<li><b>5. Embed into game → “Ready translation files”</b>: drop translation files (UABEA JSON dumps, .dat, launcher exports, game text files) anywhere in the window — the launcher finds their place in assets and bundles. If only a similar name is found (older game version) you get a warning. If only the text differs the files are replaced at once; if the structure differs you are asked: update to the current version, check only, or do nothing. A report of all changes is saved to the reports folder.</li>
 <li><b>4. Fonts</b> (if needed): choose a .ttf and press “Find fonts in game”. A TMP font is a pair MonoBehaviour + Texture2D atlas (e.g. “Arial SDF” + “Arial SDF Atlas”); the search looks for exactly such pairs — by the reference inside the font and by the shared name. An atlas without a MonoBehaviour is not a font. Click a font name to see its atlas (compare with the original, save as PNG). Then “Create and embed font” — the report shows missing characters.</li>
-<li><b>5. Install into game → “My changes”</b>: put everything into the game or restore originals with one button.</li>
+<li><b>5. Embed into game → “My changes”</b>: put everything into the game or restore originals with one button.</li>
 <li><b>6. Build archive</b>: a zip with all changed files (and the catalog) in place, starting from the <code>&lt;Game&gt;_Data</code> folder. Share it with players or other translators: they extract it into the game folder, replacing files.</li></ol>
 <h3>Manual search (step 2, “Manual search” tab)</h3><p>Like UABEA: game file tree → asset list (type, name, PathID) → “Edit”, “Dump”, “Export” (TXT, JSON, CSV, UABEA-style JSON dump, raw .dat), “Import”. “Find text in all files” searches a string in every asset.</p>
 <h3>Controls</h3><ul><li>Hotkeys (Ctrl+S, Ctrl+Shift+S, Ctrl+G, Ctrl+Z, Ctrl+X, F1…) can be changed in Settings.</li><li>Pause / Resume / Stop appear at the bottom, in the status bar, while a long operation runs (search, font creation). Log, About, Donate and Discord are the small buttons at the bottom of the sidebar.</li><li>Undo / Redo — last editor changes (Ctrl+Z / Ctrl+X). While typing in a field, Ctrl+Z undoes the typed text.</li><li>Quick save (Ctrl+S) — saves everything without questions.</li><li>Log — all actions and errors (also data/log.txt).</li></ul>

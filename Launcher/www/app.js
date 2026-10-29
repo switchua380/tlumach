@@ -4,7 +4,7 @@ const TOKEN = new URLSearchParams(location.search).get("t") || "";
 const THEMES = ["light", "dark", "ink"];
 const S = {
   state: null, project: null, page: "projects", lang: "uk",
-  editor: null, manual: { rel: "", tree: {}, open: new Set([""]), file: null, assets: [], sel: null, typeFilter: "", nameFilter: "", findResults: null },
+  editor: null, manual: { rel: "", tree: {}, open: new Set([""]), file: null, assets: [], sel: null, typeFilter: "", nameFilter: "", findResults: null, checked: new Set(), picked: new Set() },
   fonts: { ttf: "", list: null, sel: null, report: null, log: [] },
   scan: { results: null, filter: "" },
   job: null, jobLogFrom: 0, undo: [], redo: [], logOnlyErrors: false,
@@ -18,11 +18,25 @@ function fmtSize(n) { n = +n || 0; return n < 1024 ? n + " B" : n < 1048576 ? (n
 async function api(path, body, raw) {
   const opt = { headers: { "X-Token": TOKEN } };
   if (body !== undefined) { opt.method = "POST"; opt.body = JSON.stringify(body); opt.headers["Content-Type"] = "application/json"; }
-  const r = await fetch(path, opt);
-  if (raw) { if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText); return r; }
-  const j = await r.json().catch(() => ({ error: r.statusText }));
-  if (!r.ok || (j && j.error && !Array.isArray(j))) throw new Error(j.error || r.statusText);
-  return j;
+  const quiet = path.startsWith("/api/jobs/");   // job polling is shown by the job box itself
+  if (!quiet) busy(1);
+  try {
+    const r = await fetch(path, opt);
+    if (raw) { if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText); return r; }
+    const j = await r.json().catch(() => ({ error: r.statusText }));
+    if (!r.ok || (j && j.error && !Array.isArray(j))) throw new Error(j.error || r.statusText);
+    return j;
+  } finally { if (!quiet) busy(-1); }
+}
+// animated indicator in the status bar: visible while a request or a background operation runs,
+// so on big games (thousands of files) it is clear that the launcher works and has not hung
+let inflight = 0, busyTmr = null;
+function busy(d) {
+  inflight = Math.max(0, inflight + (d || 0));
+  const on = inflight > 0 || !!S.job, el = $("#busy"); if (!el) return;
+  clearTimeout(busyTmr);
+  if (on) busyTmr = setTimeout(() => { el.classList.remove("hidden"); $("#busyText").textContent = S.job ? "" : t("busy"); }, S.job ? 0 : 250);
+  else el.classList.add("hidden");
 }
 function q(params) { return Object.entries(params).map(([k, v]) => encodeURIComponent(k) + "=" + encodeURIComponent(v ?? "")).join("&"); }
 
@@ -152,6 +166,7 @@ async function saveSettings(patch) {
 function trackJob(id, kind, onDone) {
   S.job = { id, kind, onDone }; S.jobLogFrom = 0;
   $("#jobBox").classList.remove("hidden"); $("#jobName").textContent = kind;
+  busy();
   pollJob();
 }
 async function pollJob() {
@@ -166,14 +181,19 @@ async function pollJob() {
     $("#jobMsg").textContent = j.message || "";
     if (j.status === "running" || j.status === "paused") { setTimeout(pollJob, 500); return; }
     const done = job; S.job = null;
-    $("#jobBox").classList.add("hidden");
+    $("#jobBox").classList.add("hidden"); busy();
     if (j.status === "done") toast(t("jobDone") + ": " + done.kind, "ok");
     else if (j.status === "cancelled") toast(t("jobCancelled"), "warn");
     else toast(t("jobError") + ": " + (j.error || ""), "err");
-    done.onDone && done.onDone(j);
+    done.onDone && await done.onDone(j);
     refreshState();
-  } catch (e) { if (S.job !== job) return; fail(e); S.job = null; $("#jobBox").classList.add("hidden"); }
+    runAfterJob();
+  } catch (e) { if (S.job !== job) return; fail(e); S.job = null; $("#jobBox").classList.add("hidden"); busy(); runAfterJob(); }
 }
+// actions asked for while another operation runs (one operation at a time): started when it ends
+S.afterJob = [];
+function afterJob(fn) { if (!S.job) return fn(); S.afterJob.push(fn); }
+function runAfterJob() { if (S.job || !S.afterJob.length) return; const fn = S.afterJob.shift(); Promise.resolve(fn()).catch(fail).finally(runAfterJob); }
 async function jobCmd(cmd) {
   if (!S.job) return toast(t("noJob"), "warn");
   await api(`/api/jobs/${S.job.id}/${cmd}`, {});
@@ -361,7 +381,8 @@ async function pManual(m) {
   const M = S.manual;
   m.innerHTML = `<h1>${esc(t("manual_title"))}</h1><div class="sub">${esc(t("manual_sub"))}</div>
   <div class="row" style="margin-bottom:10px"><input type="text" id="ftText" class="grow" placeholder="${esc(t("findText"))}"><button class="btn" id="ftGo">🔍 ${esc(t("find"))}</button></div>
-  <div class="split"><div class="pane"><h2 style="margin-top:0">${esc(t("gameFiles"))}</h2><div class="tree" id="tree"></div></div>
+  <div class="split"><div class="pane"><div class="row" style="margin-bottom:6px"><h2 class="grow" style="margin:0">${esc(t("gameFiles"))}</h2></div>
+    <div class="row tree-acts" id="treeActs"></div><div class="tree" id="tree"></div></div>
   <div class="pane" id="assetPane"></div></div>`;
   $("#ftGo").onclick = async () => {
     const text = $("#ftText").value.trim(); if (!text) return;
@@ -384,16 +405,67 @@ async function drawTree() {
       const d = document.createElement("div");
       d.className = "item" + (it.unity ? " unity" : "") + (it.modified ? " mod" : "") + (M.file === it.rel ? " sel" : "");
       d.style.paddingLeft = (6 + depth * 14) + "px";
-      d.innerHTML = (it.dir ? (M.open.has(it.rel) ? "📂 " : "📁 ") : it.unity ? "🧩 " : "📄 ") + esc(it.name) + (it.dir ? "" : `<span class="size">${fmtSize(it.size)}</span>`);
+      d.innerHTML = (it.dir ? "" : `<input type="checkbox" class="tchk" ${M.checked.has(it.rel) ? "checked" : ""} title="${esc(t("replPick"))}">`) + (it.dir ? (M.open.has(it.rel) ? "📂 " : "📁 ") : it.unity ? "🧩 " : "📄 ") + esc(it.name) + (it.dir ? "" : `<span class="size">${fmtSize(it.size)}</span>`);
+      const cb = $(".tchk", d);
+      if (cb) { cb.onclick = e => e.stopPropagation(); cb.onchange = () => { if (cb.checked) M.checked.add(it.rel); else M.checked.delete(it.rel); drawTreeActs(); }; }
       d.onclick = async () => {
         if (it.dir) { if (M.open.has(it.rel)) M.open.delete(it.rel); else { M.open.add(it.rel); if (!M.tree[it.rel]) await loadDir(it.rel); } drawTree(); }
-        else { M.file = it.rel; M.sel = null; M.findResults = null; drawTree(); loadAssets(); }
+        else { M.file = it.rel; M.sel = null; M.picked.clear(); M.findResults = null; drawTree(); loadAssets(); }
       };
       el.appendChild(d);
       if (it.dir && M.open.has(it.rel)) add(it.rel, depth + 1);
     }
   };
   add("", 0);
+  drawTreeActs();
+}
+// files ticked in the tree are replaced as whole files (bundles, .assets …) in one step
+function drawTreeActs() {
+  const M = S.manual, el = $("#treeActs"); if (!el) return;
+  const n = M.checked.size;
+  el.innerHTML = n ? `<span class="muted" style="width:100%">${esc(t("replChecked"))}: <b>${n}</b></span><button class="btn small primary" id="trRepl">⇄ ${esc(t("replFiles"))}</button><button class="btn small ghost" id="trNone">${esc(t("selNone"))}</button>`
+    : `<span class="muted" style="font-size:12px">${esc(t("replHint"))}</span>`;
+  if (!n) return;
+  $("#trRepl").onclick = () => replaceFiles([...M.checked]);
+  $("#trNone").onclick = () => { M.checked.clear(); drawTree(); };
+}
+async function replaceFiles(rels) {
+  if (!needProject() || !rels.length) return;
+  let pairs;
+  if (rels.length === 1) {
+    const src = await pickPath({ files: true });
+    if (!src) return;
+    pairs = [{ rel: rels[0], src }];
+  } else {
+    const dir = await pickPath({});
+    if (!dir) return;
+    let m; try { m = await api("/api/file/replace/match", { project: S.project, rels, dir }); } catch (e) { return fail(e); }
+    const found = m.filter(x => x.src);
+    const body = `<p>${esc(t("replFolderText"))}</p><div class="tbl-wrap" style="max-height:50vh"><table class="tbl"><thead><tr><th>${esc(t("file"))}</th><th>${esc(t("replFrom"))}</th><th>${esc(t("size"))}</th></tr></thead><tbody>${
+      m.map(x => `<tr><td class="mono wrap" style="font-size:12px">${esc(x.rel)}</td><td class="mono wrap" style="font-size:12px">${x.src ? esc(x.src) : `<span style="color:var(--err)">${esc(t("replNoFile"))}</span>`}</td><td class="num">${x.src ? fmtSize(x.size) : ""}</td></tr>`).join("")}</tbody></table></div>`;
+    if (!found.length) { await modal({ title: t("replFiles"), body, wide: true }); return; }
+    if (await modal({ title: t("replFiles"), body, wide: true, buttons: [{ label: t("cancel"), value: false }, { label: t("replGo") + " (" + found.length + ")", value: true, cls: "primary" }] }) !== true) return;
+    pairs = found.map(x => ({ rel: x.rel, src: x.src }));
+  }
+  const dirty = S.state.open.filter(o => o.project === S.project && o.dirty && pairs.some(p => p.rel.toLowerCase() === o.rel.toLowerCase()));
+  if (dirty.length && !await confirmBox(t("replDirty") + "\n\n" + dirty.map(o => o.rel).join("\n"))) return;
+  if (rels.length === 1 && !await confirmBox(t("replOneQ").replace("{f}", pairs[0].rel).replace("{s}", pairs[0].src))) return;
+  try {
+    const r = await api("/api/file/replace", { project: S.project, items: pairs });
+    afterJob(() => trackJob(r.job, t("replFiles"), async j => {
+      if (j.status !== "done" || !j.result) return;
+      const res = j.result;
+      toast(t("replDone") + ": " + res.ok + (res.failed ? " · " + t("batchFailed") + ": " + res.failed : ""), res.failed ? "warn" : "ok");
+      if (res.catalogs && res.catalogs.length) toast(t("catalogPatched") + ": " + res.catalogs.join(", "), "ok");
+      const M = S.manual;
+      for (const p of pairs) { M.checked.delete(p.rel); const dir = p.rel.includes("/") || p.rel.includes("\\") ? p.rel.replace(/[\\/][^\\/]*$/, "") : ""; delete M.tree[dir]; }
+      await refreshState();
+      if (S.page === "manual") { await drawTree(); if (pairs.some(p => p.rel === M.file)) loadAssets(); }
+      if (res.saved && res.saved.length && res.askApply && await confirmBox(t("askApply") + "\n\n" + res.saved.join("\n"))) {
+        await api("/api/apply", { project: S.project, rels: res.saved }); toast(t("appliedN") + ": " + res.saved.length, "ok");
+      }
+    }));
+  } catch (e) { fail(e); }
 }
 async function loadAssets() {
   const M = S.manual; const pane = $("#assetPane");
@@ -425,31 +497,49 @@ function drawAssets() {
   const types = [...new Set(M.assets.map(a => a.type))].sort();
   pane.innerHTML = `<div class="card" style="padding:10px 14px"><div class="grid2" style="font-size:12px">
       <div><span class="muted">${esc(t("container"))}:</span> ${esc(M.info.container)} (${M.info.inner.length})</div><div><span class="muted">${esc(t("unityVersion"))}:</span> ${esc(M.info.unityVersion)}</div>
-      <div><span class="muted">${esc(t("typeSource"))}:</span> ${esc(M.info.typeSource || "typetree")}</div><div><span class="muted">${esc(t("source"))}:</span> ${esc(t("src_" + M.info.source))}</div></div></div>
+      <div><span class="muted">${esc(t("typeSource"))}:</span> ${esc(M.info.typeSource || "typetree")}</div><div><span class="muted">${esc(t("source"))}:</span> ${esc(t("src_" + M.info.source))}</div></div>
+      <div class="row" style="margin-top:8px"><span class="grow mono muted" style="font-size:12px">${esc(M.file)}</span><button class="btn small" id="replWhole" title="${esc(t("replWholeTip"))}">⇄ ${esc(t("replWhole"))}</button></div></div>
     <div class="row" style="margin-bottom:8px"><select id="tyF"><option value="">${esc(t("allTypes"))}</option>${types.map(x => `<option ${x === M.typeFilter ? "selected" : ""}>${esc(x)}</option>`).join("")}</select>
       <input type="text" id="nmF" class="grow" placeholder="${esc(t("filter"))}" value="${esc(M.nameFilter)}"></div>
     <div class="row" style="margin-bottom:8px" id="assetActions"></div>
     <div class="tbl-wrap"><table class="tbl clickable"><thead id="aHead"></thead><tbody id="aBody"></tbody></table></div>`;
+  $("#replWhole").onclick = () => replaceFiles([M.file]);
   $("#tyF").onchange = e => { M.typeFilter = e.target.value; drawRows(); };
   $("#nmF").oninput = e => { M.nameFilter = e.target.value; drawRows(); };
   const ad = { k: "pathId", d: 1 };
+  let shown = [];
+  const pk = a => a.file + "|" + a.pathId;
   function drawRows() {
-    $("#aHead").innerHTML = `<tr>${th("assets", "name", t("name"), ad)}${th("assets", "type", t("type"), ad)}${th("assets", "pathId", "PathID", ad)}${th("assets", "size", t("size"), ad)}${th("assets", "file", "#", ad)}</tr>`;
+    $("#aHead").innerHTML = `<tr><th style="width:28px"><input type="checkbox" id="aAll" title="${esc(t("selAll"))}"></th>${th("assets", "name", t("name"), ad)}${th("assets", "type", t("type"), ad)}${th("assets", "pathId", "PathID", ad)}${th("assets", "size", t("size"), ad)}${th("assets", "file", "#", ad)}</tr>`;
     bindSort($("#aHead"), drawRows, ad);
     const f = M.nameFilter.toLowerCase();
     const rows = sortRows("assets", M.assets.filter(a => (!M.typeFilter || a.type === M.typeFilter) && (!f || (a.name + " " + a.script + " " + a.pathId).toLowerCase().includes(f))),
       { name: a => a.name || "", type: a => a.type, pathId: a => a.pathId, size: a => +a.size, file: a => +a.file }, ad);
-    $("#aBody").innerHTML = rows.slice(0, 5000).map(a => `<tr data-k="${a.file}|${a.pathId}" class="${M.sel && M.sel.pathId === a.pathId && M.sel.file === a.file ? "sel" : ""}"><td class="wrap"><b>${esc(a.name || "—")}</b>${a.script ? `<div class="muted" style="font-size:12px">${esc(a.script)}</div>` : ""}</td><td>${esc(a.type)}</td><td class="mono" style="font-size:12px">${esc(a.pathId)}</td><td class="num">${fmtSize(a.size)}</td><td class="num">${a.file}</td></tr>`).join("");
+    shown = rows.slice(0, 5000);
+    $("#aBody").innerHTML = shown.map(a => `<tr data-k="${a.file}|${a.pathId}" class="${M.sel && M.sel.pathId === a.pathId && M.sel.file === a.file ? "sel" : ""}"><td><input type="checkbox" class="aChk" ${M.picked.has(pk(a)) ? "checked" : ""}></td><td class="wrap"><b>${esc(a.name || "—")}</b>${a.script ? `<div class="muted" style="font-size:12px">${esc(a.script)}</div>` : ""}</td><td>${esc(a.type)}</td><td class="mono" style="font-size:12px">${esc(a.pathId)}</td><td class="num">${fmtSize(a.size)}</td><td class="num">${a.file}</td></tr>`).join("");
     $$("#aBody tr").forEach(tr => {
       const [file, pid] = tr.dataset.k.split("|"); const a = M.assets.find(x => x.file == file && x.pathId === pid);
       tr.onclick = () => { M.sel = a; $$("#aBody tr").forEach(x => x.classList.remove("sel")); tr.classList.add("sel"); drawActions(); };
       tr.ondblclick = () => openAsset(M.file, a.file, a.pathId, a.name || a.type);
+      const cb = $(".aChk", tr);
+      cb.onclick = e => e.stopPropagation(); cb.ondblclick = e => e.stopPropagation();
+      cb.onchange = () => { if (cb.checked) M.picked.add(pk(a)); else M.picked.delete(pk(a)); syncAll(); drawActions(); };
     });
+    $("#aAll").onchange = e => { for (const a of shown) { if (e.target.checked) M.picked.add(pk(a)); else M.picked.delete(pk(a)); } $$("#aBody .aChk").forEach(c => c.checked = e.target.checked); drawActions(); };
+    syncAll();
+  }
+  function syncAll() {
+    const all = $("#aAll"); if (!all) return;
+    const n = shown.filter(a => M.picked.has(pk(a))).length;
+    all.checked = n > 0 && n === shown.length; all.indeterminate = n > 0 && n < shown.length;
   }
   function drawActions() {
     const a = M.sel, box = $("#assetActions");
-    if (!a) { box.innerHTML = ""; return; }
-    box.innerHTML = `<b class="grow">${esc(a.name || a.type)} <span class="muted">#${esc(a.pathId)}</span></b>
+    const n = M.picked.size;
+    const multi = n ? `<div class="row multi-acts" style="width:100%"><span class="grow">${esc(t("assetsPicked"))}: <b>${n}</b></span>
+      <button class="btn small primary" id="aImpMany" title="${esc(t("impManyTip"))}">⇪ ${esc(t("impMany"))}</button><button class="btn small ghost" id="aNone">${esc(t("selNone"))}</button></div>` : "";
+    if (!a) { box.innerHTML = multi; bindMulti(); return; }
+    box.innerHTML = multi + `<b class="grow">${esc(a.name || a.type)} <span class="muted">#${esc(a.pathId)}</span></b>
       <button class="btn small primary" data-x="edit">✎ ${esc(t("edit"))}</button><button class="btn small" data-x="dump">{ } ${esc(t("viewDump"))}</button>
       <select data-x="exp"><option value="">${esc(t("export"))}…</option><option value="txt">${esc(t("exportTxt"))}</option><option value="json">${esc(t("exportJson"))}</option><option value="csv">${esc(t("exportCsv"))}</option><option value="dump">${esc(t("exportDump"))}</option><option value="dat">${esc(t("exportDat"))}</option></select>
       <button class="btn small" data-x="imp">⇪ ${esc(t("import"))}</button>`;
@@ -461,6 +551,12 @@ function drawAssets() {
     };
     $('[data-x="exp"]', box).onchange = e => { if (e.target.value) { exportAsset(tgt, e.target.value); e.target.value = ""; } };
     $('[data-x="imp"]', box).onclick = () => chooseAndImport(tgt);
+    bindMulti();
+  }
+  function bindMulti() {
+    if (!$("#aImpMany")) return;
+    $("#aImpMany").onclick = () => importMany(M.file, M.assets.filter(a => M.picked.has(pk(a))));
+    $("#aNone").onclick = () => { M.picked.clear(); drawRows(); drawActions(); };
   }
   drawRows(); drawActions();
 }
@@ -484,6 +580,38 @@ async function exportAsset(tgt, format) {
     await r.blob();
     toast(t("exported") + decodeURIComponent(r.headers.get("X-Saved-To") || ""), "ok");
   } catch (e) { fail(e); }
+}
+// many files into the assets ticked in one bundle: matched by asset name (or PathID in the file name); one file + one asset = direct
+function importMany(rel, assets) {
+  if (!assets.length) return;
+  const inp = document.createElement("input"); inp.type = "file"; inp.multiple = true;
+  inp.onchange = async () => {
+    const files = [...inp.files]; if (!files.length) return;
+    try {
+      const list = []; for (const f of files) list.push({ name: f.name, data: await fileToB64(f) });
+      const r = await api("/api/manual/import", { project: S.project, rel, lang: S.lang, targets: assets.map(a => ({ file: a.file, pathId: a.pathId })), files: list });
+      if (!r.matched) {
+        await modal({ title: t("impMany"), body: `<p>${esc(t("impNoMatch"))}</p>${r.noPlace.length ? `<pre class="mono" style="white-space:pre-wrap">${esc(r.noPlace.join("\n"))}</pre>` : ""}` });
+        return;
+      }
+      if (r.noPlace.length) toast(t("impSomeNoMatch") + ": " + r.noPlace.length, "warn");
+      afterJob(() => trackJob(r.job, t("impMany"), async j => {
+        if (j.status !== "done" || !j.result) return;
+        const res = j.result;
+        await refreshState();
+        if (S.page === "manual" && S.manual.file === rel) { S.manual.picked.clear(); loadAssets(); }
+        const v = await modal({ title: t("impMany"), body: `<p><b>✔ ${esc(t("batchDone"))}: ${res.ok} · ${esc(t("batchSkipped"))}: ${res.skipped} · ${esc(t("batchFailed"))}: ${res.failed}</b></p>
+          ${res.noPlace && res.noPlace.length ? `<p class="muted">${esc(t("impSomeNoMatch"))}: ${res.noPlace.length}</p>` : ""}${res.noFile ? `<p class="muted">${esc(t("impNoFile"))}: ${res.noFile}</p>` : ""}`,
+          buttons: [{ label: "📄 " + t("batchReport"), value: "rep" }, { label: t("ok"), value: true, cls: "primary" }] });
+        if (v === "rep") await showReport(res.report);
+        if (res.saved && res.saved.length && res.askApply && await confirmBox(t("askApply") + "\n\n" + res.saved.join("\n"))) {
+          await api("/api/apply", { project: S.project, rels: res.saved }); toast(t("appliedN") + ": " + res.saved.length, "ok");
+          await askCatalogs();
+        }
+      }));
+    } catch (e) { fail(e); }
+  };
+  inp.click();
 }
 function chooseAndImport(tgt) {
   const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".txt,.json,.csv,.dat";
@@ -757,9 +885,9 @@ async function batchAnalyze() {
     });
   } catch (e) { fail(e); }
 }
-async function batchApply(mode) {
+async function batchApply(mode, ids) {
   try {
-    const r = await api("/api/batch/apply", { project: S.project, mode, add: S.batch.add, lang: S.lang });
+    const r = await api("/api/batch/apply", { project: S.project, mode, add: S.batch.add, lang: S.lang, ids });
     trackJob(r.job, mode === "check" ? t("batchCheck") : t("batchUpdate"), async j => {
       if (j.status !== "done" || !j.result) return;
       S.batch.result = j.result;
@@ -785,25 +913,50 @@ async function showReport(name) {
 }
 async function pickTarget(it) {
   const body = document.createElement("div");
-  body.innerHTML = `<input type="text" id="tgQ" class="mono" style="width:100%" placeholder="${esc(t("batchFindPh"))}" value="${esc(it.nameHint || "")}"><div class="tbl-wrap" style="margin-top:8px;max-height:55vh"><table class="tbl clickable"><thead id="tgHead"></thead><tbody id="tgList"></tbody></table></div>`;
-  let chosen = null, found = [];
+  body.innerHTML = `<input type="text" id="tgQ" class="mono" style="width:100%" placeholder="${esc(t("batchFindPh"))}" value="${esc(it.nameHint || "")}">
+    <div class="muted" id="tgInfo" style="font-size:12px;margin-top:6px"></div>
+    <div class="tbl-wrap" style="margin-top:8px;max-height:55vh"><table class="tbl clickable"><thead id="tgHead"></thead><tbody id="tgList"></tbody></table></div>`;
+  let chosen = null, found = [], poll = null, seq = 0;
   const tgDef = { k: "", d: 1 };
-  const load = async () => { found = await api("/api/batch/find?" + q({ project: S.project, q: $("#tgQ", body).value })); draw(); };
+  const okBtn = () => body.closest(".modal")?.querySelector("footer .primary");
+  // the game index of a big game is built for minutes: show what is indexed so far and refresh while it grows
+  const load = async () => {
+    const my = ++seq; clearTimeout(poll);
+    $("#tgInfo", body).innerHTML = `<span class="spin-inline"></span> ${esc(t("busy"))}`;
+    let r; try { r = await api("/api/batch/find?" + q({ project: S.project, q: $("#tgQ", body).value })); } catch (e) { $("#tgInfo", body).textContent = "⚠ " + e.message; return; }
+    if (my !== seq || !body.isConnected) return;
+    found = Array.isArray(r) ? r : r.items || [];
+    $("#tgInfo", body).innerHTML = r.building ? `<span class="spin-inline"></span> ${esc(t("indexBuilding").replace("{n}", r.indexed))}` : "";
+    draw();
+    if (r.building) poll = setTimeout(() => { if (body.isConnected) load(); }, 3000);
+  };
   const draw = () => {
     $("#tgHead", body).innerHTML = `<tr>${th("target", "name", t("asset"), tgDef)}${th("target", "file", t("file"), tgDef)}</tr>`;
     bindSort($("#tgHead", body), draw, tgDef);
     const list = sortRows("target", found, { name: c => c.name || "", file: c => c.rel }, tgDef);
-    $("#tgList", body).innerHTML = list.map((c, i) => `<tr data-i="${i}"><td><b>${esc(c.name || "—")}</b> <span class="muted">${esc(c.type)}${c.loose ? "" : " #" + esc(c.pathId)}</span></td><td class="mono wrap" style="font-size:12px">${esc(c.rel)}</td></tr>`).join("") || `<tr><td class="empty">${esc(t("nothingFound"))}</td></tr>`;
-    $$("#tgList tr", body).forEach(tr => tr.onclick = () => { chosen = list[+tr.dataset.i]; $$("#tgList tr", body).forEach(x => x.classList.remove("sel")); tr.classList.add("sel"); });
+    $("#tgList", body).innerHTML = list.map((c, i) => `<tr data-i="${i}" class="${chosen && chosen.key === c.key ? "sel" : ""}"><td><b>${esc(c.name || "—")}</b> <span class="muted">${esc(c.type)}${c.loose ? "" : " #" + esc(c.pathId)}</span></td><td class="mono wrap" style="font-size:12px">${esc(c.rel)}</td></tr>`).join("") || `<tr><td class="empty">${esc(t("nothingFound"))}</td></tr>`;
+    $$("#tgList tr[data-i]", body).forEach(tr => {
+      tr.onclick = () => { chosen = list[+tr.dataset.i]; $$("#tgList tr", body).forEach(x => x.classList.remove("sel")); tr.classList.add("sel"); const b = okBtn(); if (b) b.disabled = false; };
+      tr.ondblclick = () => { tr.onclick(); okBtn()?.click(); };
+    });
   };
-  let tmr; $("#tgQ", body).oninput = () => { clearTimeout(tmr); tmr = setTimeout(load, 250); };
+  let tmr; $("#tgQ", body).oninput = () => { clearTimeout(tmr); tmr = setTimeout(load, 300); };
+  const p = modal({ title: t("batchPickTarget") + ": " + it.name, body, wide: true, buttons: [{ label: t("cancel"), value: null }, { label: t("batchUseTarget"), value: "ok", cls: "primary" }] });
+  okBtn().disabled = true;   // the place is a row of the list: nothing chosen = nothing to do
   load();
-  const v = await modal({ title: t("batchPickTarget") + ": " + it.name, body, wide: true, buttons: [{ label: t("cancel"), value: null }, { label: t("ok"), value: "ok", cls: "primary" }] });
+  const v = await p; clearTimeout(poll); seq++;
   if (v !== "ok" || !chosen) return;
-  await setTarget(it, { key: chosen.key });
+  if (!await setTarget(it, { key: chosen.key })) return;
+  const cur = S.batch.items.find(x => x.id === it.id);
+  toast(t("batchTargetSet") + ": " + (chosen.name || chosen.rel), "ok");
+  // before, the choice only changed the row and waited for «Виконати»; now the file can be replaced right away
+  if (cur && cur.target && await confirmBox(t("batchApplyOneQ").replace("{f}", it.name).replace("{t}", (chosen.name || "") + " · " + chosen.rel), t("batchApplyNow"), t("batchLater"))) {
+    if (S.job) toast(t("batchQueued"), "");
+    afterJob(() => { if (S.batch.items.some(x => x.id === it.id)) return batchApply("update", [it.id]); });
+  }
 }
 async function setTarget(it, body) {
-  try { const r = await api("/api/batch/target", { project: S.project, id: it.id, ...body }); S.batch.items = r.items; S.batch.need = r.needDecision; drawBatch(); } catch (e) { fail(e); }
+  try { const r = await api("/api/batch/target", { project: S.project, id: it.id, ...body }); S.batch.items = r.items; S.batch.need = r.needDecision; drawBatch(); return true; } catch (e) { fail(e); return false; }
 }
 async function pickNewPlace(it) {
   const dir = await pickPath({ start: S.state.projects.find(p => p.id === S.project)?.gameRoot || "" });
@@ -1336,7 +1489,7 @@ $("#nav").onclick = e => {
 };
 $("#jobBtns").onclick = e => { const b = e.target.closest("button[data-act]"); if (b) ACTS[b.dataset.act]?.(); };
 document.addEventListener("click", e => { $$("details.more[open]").forEach(d => { if (!d.contains(e.target)) d.open = false; }); });
-$("#projectSelect").onchange = e => { S.project = e.target.value; localStorage.setItem("project", S.project); S.scan.results = null; S.manual = { rel: "", tree: {}, open: new Set([""]), file: null, assets: [], sel: null, typeFilter: "", nameFilter: "", findResults: null }; S.fonts.list = null; render(); };
+$("#projectSelect").onchange = e => { S.project = e.target.value; localStorage.setItem("project", S.project); S.scan.results = null; S.manual = { rel: "", tree: {}, open: new Set([""]), file: null, assets: [], sel: null, typeFilter: "", nameFilter: "", findResults: null, checked: new Set(), picked: new Set() }; S.fonts.list = null; render(); };
 $("#toolbar").onclick = e => { const b = e.target.closest("button[data-act]"); if (b) ACTS[b.dataset.act]?.(); };
 // hotkeys: configurable in Settings (S.state.settings.Hotkeys keeps only the changed ones, "" = no key)
 const HOTKEYS = [

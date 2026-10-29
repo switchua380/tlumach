@@ -45,7 +45,7 @@ public static partial class Api
         var tok = r.Headers.TryGetValue("X-Token", out var t) ? t : r.Q("t");
         if (tok != Token) return HttpServer.Resp.Json("{\"error\":\"bad token\"}", 403);
         LastSeen = DateTime.UtcNow;
-        if (r.Path.StartsWith("/api/batch")) { var br = BatchRoutes(r, r.Method + " " + r.Path); if (br != null) return br; }
+        if (r.Path.StartsWith("/api/batch") || r.Path.StartsWith("/api/manual/") || r.Path.StartsWith("/api/file/replace")) { var br = BatchRoutes(r, r.Method + " " + r.Path); if (br != null) return br; }
 
         switch (r.Method + " " + r.Path)
         {
