@@ -15,7 +15,7 @@ public static partial class Api
     public static DateTime LastSeen = DateTime.UtcNow;
     public static bool Busy => Job.All.Values.Any(j => j.Status is "running" or "paused") || Docs.All().Any(d => d.Dirty);
     public static Action? OnExit;
-    public const string Version = "1.3.0";
+    public const string Version = "1.3.1";
     // links of the «Донат» and «Bugs (Discord)» buttons — fixed by the developers, not editable in Settings
     public const string DonateUrl = "https://send.monobank.ua/jar/8pM8nifjho";
     public const string BugsUrl = "https://discord.gg/VUX3EDNsHr";

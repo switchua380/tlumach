@@ -18,11 +18,12 @@ public static partial class Api
     {
         public string Rel = "", FileName = "", Name = "", Type = "", Script = "";
         public int File = -1, TypeId; public long PathId; public bool Loose;
+        public bool Whole;   // a whole Unity file (bundle / .assets) of the game; also Loose, so names compare like files
         public double Score; public string Why = "";
-        public string Key => Loose ? "L|" + Rel : $"{Rel}|{File}|{PathId}";
+        public string Key => Whole ? "W|" + Rel : Loose ? "L|" + Rel : $"{Rel}|{File}|{PathId}";
         public JsonObject ToJson() => new()
         {
-            ["key"] = Key, ["rel"] = Rel, ["file"] = File, ["pathId"] = PathId.ToString(), ["name"] = Name, ["type"] = Loose ? "File" : Type,
+            ["key"] = Key, ["rel"] = Rel, ["file"] = File, ["pathId"] = PathId.ToString(), ["name"] = Name, ["type"] = Loose && !Whole ? "File" : Type,
             ["script"] = Script, ["loose"] = Loose, ["score"] = Math.Round(Score, 3), ["why"] = Why, ["fileName"] = FileName
         };
     }
@@ -185,7 +186,7 @@ public static partial class Api
     }
 
     // ------------------------------------------------------------------ index of everything in the game
-    static Cand Clone(Cand c) => new() { Rel = c.Rel, FileName = c.FileName, Name = c.Name, Type = c.Type, Script = c.Script, File = c.File, TypeId = c.TypeId, PathId = c.PathId, Loose = c.Loose };
+    static Cand Clone(Cand c) => new() { Rel = c.Rel, FileName = c.FileName, Name = c.Name, Type = c.Type, Script = c.Script, File = c.File, TypeId = c.TypeId, PathId = c.PathId, Loose = c.Loose, Whole = c.Whole };
 
     static readonly HashSet<string> LooseExt = new(StringComparer.OrdinalIgnoreCase) { ".json", ".txt", ".csv", ".tsv", ".xml", ".lang", ".loc", ".ini", ".yaml", ".yml", ".po", ".strings", ".cfg", ".properties", ".bytes" };
     static readonly HashSet<string> SkipExt = new(StringComparer.OrdinalIgnoreCase) { ".dll", ".exe", ".pdb", ".png", ".jpg", ".wav", ".ogg", ".mp4", ".webm", ".bank", ".ress", ".resource", ".resS", ".so", ".dylib", ".log", ".jpeg", ".tga", ".bmp", ".gif", ".psd", ".mp3", ".flac", ".aiff", ".avi", ".mov", ".mkv", ".usm", ".zip", ".7z", ".rar", ".exr", ".dds", ".ktx" };
@@ -201,6 +202,7 @@ public static partial class Api
         }
     }
     static string IndexFile(Project p) => System.IO.Path.Combine(p.WorkDir, "game-index.json");
+    const int IndexVersion = 2;
 
     /// <summary>What is indexed so far (instant). <paramref name="building"/> = an index build is running right now.</summary>
     static List<Cand> IndexSnapshot(Project p, out bool building)
@@ -248,6 +250,9 @@ public static partial class Api
             var kind = UnityDoc.DetectKind(f);
             if (kind != UnityDoc.FileKind.None)
             {
+                // the file itself is a place too: a translated bundle dropped as a whole replaces it as a whole
+                var fn = System.IO.Path.GetFileName(f);
+                list.Add(new Cand { Rel = rel, Name = fn, FileName = fn, Loose = true, Whole = true, Type = kind == UnityDoc.FileKind.Bundle ? "Bundle" : "Unity file" });
                 try
                 {
                     using var d = new UnityDoc(cur, f);
@@ -274,13 +279,13 @@ public static partial class Api
     {
         try
         {
-            var root = new JsonObject();
+            var root = new JsonObject { ["_v"] = IndexVersion };
             lock (batchLock)
                 foreach (var (rel, e) in idx)
                     root[rel] = new JsonObject
                     {
                         ["s"] = e.stamp,
-                        ["a"] = new JsonArray(e.items.Select(c => (JsonNode?)new JsonArray(c.Loose ? 1 : 0, c.File, c.PathId, c.TypeId, c.Type, c.Name, c.Script, c.FileName)).ToArray())
+                        ["a"] = new JsonArray(e.items.Select(c => (JsonNode?)new JsonArray(c.Whole ? 2 : c.Loose ? 1 : 0, c.File, c.PathId, c.TypeId, c.Type, c.Name, c.Script, c.FileName)).ToArray())
                     };
             Directory.CreateDirectory(p.WorkDir);
             var tmp = IndexFile(p) + ".tmp";
@@ -295,14 +300,17 @@ public static partial class Api
         {
             if (!File.Exists(IndexFile(p))) return;
             if (JsonNode.Parse(File.ReadAllText(IndexFile(p))) is not JsonObject root) return;
+            if ((int?)root["_v"] != IndexVersion) return;   // older index (1.3.0 had no whole-file places): build again
             foreach (var (rel, n) in root)
             {
+                if (rel == "_v") continue;
                 if (n is not JsonObject e) continue;
                 var list = new List<Cand>();
                 foreach (var a in (e["a"] as JsonArray)!)
                 {
                     var x = (JsonArray)a!;
-                    list.Add(new Cand { Rel = rel, Loose = x[0]!.GetValue<int>() == 1, File = x[1]!.GetValue<int>(), PathId = x[2]!.GetValue<long>(), TypeId = x[3]!.GetValue<int>(),
+                    int kind = x[0]!.GetValue<int>();
+                    list.Add(new Cand { Rel = rel, Loose = kind >= 1, Whole = kind == 2, File = x[1]!.GetValue<int>(), PathId = x[2]!.GetValue<long>(), TypeId = x[3]!.GetValue<int>(),
                                         Type = x[4]!.ToString(), Name = x[5]!.ToString(), Script = x[6]?.ToString() ?? "", FileName = x[7]?.ToString() ?? "" });
                 }
                 idx[rel] = (e["s"]!.GetValue<long>(), list);
@@ -314,6 +322,7 @@ public static partial class Api
     /// <summary>Target from a key without the index: «rel|file|pathId» of an asset or «L|rel» of a loose file.</summary>
     static Cand? CandFromKey(Project p, string key)
     {
+        if (key.StartsWith("W|")) { var rel = p.CheckRel(key[2..]); var fn = System.IO.Path.GetFileName(rel); return File.Exists(p.GamePath(rel)) ? new Cand { Rel = rel, Loose = true, Whole = true, Type = "Unity file", Name = fn, FileName = fn } : null; }
         if (key.StartsWith("L|")) { var rel = p.CheckRel(key[2..]); return File.Exists(p.GamePath(rel)) ? new Cand { Rel = rel, Loose = true, Type = "File", Name = System.IO.Path.GetFileName(rel), FileName = System.IO.Path.GetFileName(rel) } : null; }
         var parts = key.Split('|'); if (parts.Length < 3) return null;
         var r = p.CheckRel(string.Join("|", parts[..^2])); int file = int.Parse(parts[^2]); long pid = long.Parse(parts[^1]);
@@ -334,6 +343,11 @@ public static partial class Api
         if (stem.EndsWith(".dump", StringComparison.OrdinalIgnoreCase)) stem = stem[..^5];
         var m = UabeaCab.Match(stem); if (!m.Success) m = UabeaName.Match(stem);
         it.NameHint = stem; it.FileHint = null; it.PidHint = null; it.TypeHint = null;
+        if (UnityDoc.DetectKind(it.Path) != UnityDoc.FileKind.None)
+        {
+            // a whole bundle / .assets file: its place is the game file with the same name
+            it.Format = "unity"; it.NameHint = stem; it.FileHint = null; it.PidHint = null; return;
+        }
         if (m.Success) { it.NameHint = m.Groups["name"].Value; it.FileHint = m.Groups["file"].Value; it.PidHint = long.Parse(m.Groups["pid"].Value); }
         if (ext == ".dat") { it.Format = "raw"; return; }
         var text = Extract.LooksBinary(bytes) ? null : Extract.DecodeText(bytes);
@@ -382,6 +396,7 @@ public static partial class Api
 
     static bool Compatible(BItem it, Cand c)
     {
+        if (c.Whole != (it.Format == "unity")) return false;
         switch (it.Format)
         {
             case "dump": return !c.Loose && (it.TypeHint == null || c.TypeId == it.TypeHint);
@@ -600,6 +615,14 @@ public static partial class Api
         it.Sample.Clear(); it.Stats = null; it.Error = null;
         try
         {
+            if (it.Target!.Whole)
+            {
+                var cur = p.Current(it.Target.Rel);
+                it.Content = SameBytes(it.Path, cur) ? "identical" : "wholefile";
+                if (it.Content == "wholefile") it.Sample.Add($"Файл гри буде замінено цілком: {fmt(new FileInfo(cur).Length)} → {fmt(new FileInfo(it.Path).Length)}");
+                return;
+                static string fmt(long n) => n < 1048576 ? (n / 1024.0).ToString("0.0", CultureInfo.InvariantCulture) + " KB" : (n / 1048576.0).ToString("0.0", CultureInfo.InvariantCulture) + " MB";
+            }
             var pr = Prepare(p, it);
             if (pr.Mode == "raw-only")
             {
@@ -621,6 +644,20 @@ public static partial class Api
         catch (Exception e) { it.Content = "error"; it.Error = e.Message; }
     }
 
+    static bool SameBytes(string a, string b)
+    {
+        var fa = new FileInfo(a); var fb = new FileInfo(b);
+        if (!fa.Exists || !fb.Exists || fa.Length != fb.Length) return false;
+        using var sa = fa.OpenRead(); using var sb = fb.OpenRead();
+        var ba = new byte[1 << 16]; var bb = new byte[1 << 16];
+        while (true)
+        {
+            int na = sa.Read(ba, 0, ba.Length); if (na == 0) return true;
+            sb.ReadExactly(bb, 0, na);
+            if (!ba.AsSpan(0, na).SequenceEqual(bb.AsSpan(0, na))) return false;
+        }
+    }
+
     // ------------------------------------------------------------------ apply / report
     static JsonNode? ApplyBatch(Project p, Job j, string mode, bool add, string lang, List<BItem> items, bool fromBatch, string title = "ІМПОРТ ФАЙЛІВ У ГРУ")
     {
@@ -631,7 +668,7 @@ public static partial class Api
         rep.AppendLine($"Дата: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
         if (update) rep.AppendLine($"Додавати записи, яких немає в актуальній версії: {(add ? "так" : "ні")}");
         rep.AppendLine(new string('═', 78));
-        var touched = new HashSet<Docs.Open>(); var newFiles = new List<string>();
+        var touched = new HashSet<Docs.Open>(); var newFiles = new List<string>(); var wholeFiles = new List<string>();
         int ok = 0, skipped = 0, failed = 0;
         for (int i = 0; i < items.Count; i++)
         {
@@ -661,6 +698,18 @@ public static partial class Api
                 rep.AppendLine($"  Збіг: {StatusText(it.Status)}" + (c.Why != "" && !c.Why.StartsWith("схожа") ? $" — {c.Why}" : c.Why.StartsWith("схожа") ? $" ({Math.Round(Math.Min(1, c.Score) * 100)}%)" : ""));
                 if (it.Status is "similar" or "renamed") rep.AppendLine($"  ⚠ УВАГА: назва файлу «{it.NameHint}» не збігається з «{c.Name}». Перевірте, що це той самий ассет (можливо, файл зі старої версії гри або перейменований).");
                 if (it.Note != "") rep.AppendLine("  ⚠ " + it.Note);
+                if (c.Whole)
+                {
+                    if (SameBytes(it.Path, p.Current(c.Rel))) { rep.AppendLine("  = Файл ідентичний файлу гри — змін немає."); skipped++; continue; }
+                    rep.AppendLine(update ? "  Цілий файл Unity — файл гри замінено повністю (оригінал збережено)." : "  Цілий файл Unity — при оновленні файл гри буде замінено повністю.");
+                    if (!update) { ok++; continue; }
+                    Docs.Close(p, c.Rel);
+                    if (File.Exists(p.GamePath(c.Rel))) Store.BackupOriginal(p, c.Rel);
+                    var dst = p.ModPath(c.Rel); Directory.CreateDirectory(System.IO.Path.GetDirectoryName(dst)!);
+                    File.Copy(it.Path, dst, true); File.SetAttributes(dst, FileAttributes.Normal);
+                    wholeFiles.Add(c.Rel); ok++; rep.AppendLine("  ✔ Застосовано.");
+                    continue;
+                }
                 var pr = Prepare(p, it);
                 if (pr.Mode == "raw-only")
                 {
@@ -697,6 +746,12 @@ public static partial class Api
         {
             var catalogs = new List<string>();
             foreach (var o in touched) if (o.Dirty) { foreach (var c in Docs.SaveDoc(o)) if (!catalogs.Contains(c)) catalogs.Add(c); saved.Add(o.Rel); }
+            foreach (var w in wholeFiles)
+            {
+                if (Store.Settings.ReplaceInPlace) Store.ApplyToGame(p, w);
+                foreach (var c in Store.PatchCatalogs(p, w)) if (!catalogs.Contains(c)) catalogs.Add(c);
+                saved.Add(w);
+            }
             foreach (var c in catalogs) { saved.Add(c); rep.AppendLine($"Каталог Addressables оновлено (CRC скинуто): {c}"); }
             foreach (var nf in newFiles) saved.Add(nf);
             if (Store.Settings.ReplaceInPlace) foreach (var nf in newFiles) Store.ApplyToGame(p, nf);
