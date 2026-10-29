@@ -15,7 +15,7 @@ public static partial class Api
     public static DateTime LastSeen = DateTime.UtcNow;
     public static bool Busy => Job.All.Values.Any(j => j.Status is "running" or "paused") || Docs.All().Any(d => d.Dirty);
     public static Action? OnExit;
-    public const string Version = "1.2.0";
+    public const string Version = "1.3.0";
     // links of the «Донат» and «Bugs (Discord)» buttons — fixed by the developers, not editable in Settings
     public const string DonateUrl = "https://send.monobank.ua/jar/8pM8nifjho";
     public const string BugsUrl = "https://discord.gg/VUX3EDNsHr";
@@ -45,7 +45,7 @@ public static partial class Api
         var tok = r.Headers.TryGetValue("X-Token", out var t) ? t : r.Q("t");
         if (tok != Token) return HttpServer.Resp.Json("{\"error\":\"bad token\"}", 403);
         LastSeen = DateTime.UtcNow;
-        if (r.Path.StartsWith("/api/batch")) { var br = BatchRoutes(r, r.Method + " " + r.Path); if (br != null) return br; }
+        if (r.Path.StartsWith("/api/batch") || r.Path.StartsWith("/api/manual/") || r.Path.StartsWith("/api/file/replace")) { var br = BatchRoutes(r, r.Method + " " + r.Path); if (br != null) return br; }
 
         switch (r.Method + " " + r.Path)
         {

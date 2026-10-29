@@ -35,9 +35,10 @@ public static partial class Api
         public string Status = "new", Content = "", Note = ""; public bool Include = true;
         public JsonObject? Stats; public List<string> Sample = new(); public string? Error;
         public long Size;
+        public bool Manual;   // target chosen by the user («Інша ціль…» / manual search): analysis keeps it
         public JsonObject ToJson() => new()
         {
-            ["id"] = Id, ["name"] = Name, ["size"] = Size, ["format"] = Format, ["nameHint"] = NameHint, ["status"] = Status, ["content"] = Content,
+            ["manual"] = Manual, ["id"] = Id, ["name"] = Name, ["size"] = Size, ["format"] = Format, ["nameHint"] = NameHint, ["status"] = Status, ["content"] = Content,
             ["note"] = Note, ["include"] = Include, ["error"] = Error, ["stats"] = Stats?.DeepClone(), ["newRel"] = NewRel,
             ["target"] = Target?.ToJson(), ["cands"] = new JsonArray(Cands.Select(c => (JsonNode?)c.ToJson()).ToArray()),
             ["sample"] = new JsonArray(Sample.Select(s => (JsonNode?)JsonValue.Create(s)).ToArray())
@@ -47,6 +48,8 @@ public static partial class Api
     static readonly Dictionary<string, List<BItem>> batches = new();
     static readonly Dictionary<string, Dictionary<string, (long stamp, List<Cand> items)>> indexes = new();
     static readonly object batchLock = new();
+    static readonly Dictionary<string, object> indexBuild = new();   // one index build per project at a time
+    static readonly HashSet<string> indexLoaded = new();
 
     static List<BItem> Batch(Project p) { lock (batchLock) { if (!batches.TryGetValue(p.Id, out var l)) batches[p.Id] = l = new(); return l; } }
     static string Incoming(Project p) => System.IO.Path.Combine(p.WorkDir, "incoming");
@@ -106,18 +109,21 @@ public static partial class Api
                 if (b["newRel"] != null)
                 {
                     var nr = b["newRel"]!.ToString().Trim();
-                    it.NewRel = nr == "" ? null : p.CheckRel(nr); it.Target = null;
+                    it.NewRel = nr == "" ? null : p.CheckRel(nr); it.Target = null; it.Manual = it.NewRel != null;
                     it.Content = it.NewRel != null ? "newfile" : ""; it.Status = it.NewRel != null ? "newfile" : "notfound";
                     return J(BatchState(p));
                 }
                 var key = b["key"]!.ToString();
+                if (it.Format == "") Detect(it);   // chosen before the analysis reached this file
                 var c = it.Cands.FirstOrDefault(x => x.Key == key);
                 if (c == null)
                 {
-                    var idx = IndexFor(p, null).FirstOrDefault(x => x.Key == key) ?? throw new Exception("Target not found");
-                    c = Clone(idx); c.Score = Score(it, c); c.Why = "вибрано вручну"; it.Cands.Insert(0, c);
+                    // never wait for a running index build here: the list in the dialog came from the same (partial) index
+                    var idx = IndexSnapshot(p, out _).FirstOrDefault(x => x.Key == key) ?? CandFromKey(p, key) ?? throw new Exception("Target not found");
+                    c = Clone(idx); c.Score = Score(it, c); it.Cands.Insert(0, c);
                 }
-                it.Target = c; it.NewRel = null;
+                c.Why = "вибрано вручну";
+                it.Target = c; it.NewRel = null; it.Manual = true; it.Include = true; it.Note = "";
                 SetStatus(it);
                 Compare(p, it);
                 return J(BatchState(p));
@@ -125,10 +131,13 @@ public static partial class Api
             case "GET /api/batch/find":
             {
                 var p = Store.Get(r.Q("project")); var q = r.Q("q").Trim();
+                // the index of a big game takes minutes: search what is indexed so far and let the dialog ask again later
+                var all = IndexSnapshot(p, out bool building);
+                if (all.Count == 0 && !building) { all = TryIndex(p, out building); }
                 var res = new JsonArray();
-                foreach (var c in IndexFor(p, null).Where(x => q == "" || (x.Name + " " + x.Rel + " " + x.PathId).Contains(q, StringComparison.OrdinalIgnoreCase)).Take(200))
+                foreach (var c in all.Where(x => q == "" || (x.Name + " " + x.Rel + " " + x.PathId).Contains(q, StringComparison.OrdinalIgnoreCase)).Take(300))
                     res.Add(c.ToJson());
-                return J(res);
+                return J(new JsonObject { ["items"] = res, ["building"] = building, ["indexed"] = all.Count });
             }
             case "POST /api/batch/apply":
             {
@@ -136,7 +145,39 @@ public static partial class Api
                 var mode = b["mode"]?.ToString() ?? "update";        // update | check
                 bool add = b["add"]?.GetValue<bool>() ?? true;
                 var lang = b["lang"]?.ToString() ?? "uk";
-                var job = Job.Start("batch-apply", j => ApplyBatch(p, j, mode, add, lang));
+                var ids = (b["ids"] as JsonArray)?.Select(x => x!.ToString()).ToHashSet();
+                List<BItem> items; lock (batchLock) items = Batch(p).Where(i => i.Include && (ids == null || ids.Contains(i.Id))).ToList();
+                var job = Job.Start("batch-apply", j => ApplyBatch(p, j, mode, add, lang, items, true));
+                return J(new JsonObject { ["job"] = job.Id });
+            }
+            case "POST /api/manual/import": return J(ManualImport(Body(r)));
+            case "POST /api/file/replace/match":
+            {
+                // whole files from a folder: the same file name as in the game (first in the folder itself, then in subfolders)
+                var b = Body(r); var p = Store.Get(b["project"]!.ToString()); var dir = b["dir"]!.ToString();
+                if (!Directory.Exists(dir)) throw new Exception("Folder not found: " + dir);
+                var top = Directory.GetFiles(dir); string[]? deep = null;
+                var res = new JsonArray();
+                foreach (var x in (b["rels"] as JsonArray)!)
+                {
+                    var rel = p.CheckRel(x!.ToString()); var name = System.IO.Path.GetFileName(rel);
+                    var src = top.FirstOrDefault(f => string.Equals(System.IO.Path.GetFileName(f), name, StringComparison.OrdinalIgnoreCase));
+                    if (src == null)
+                    {
+                        deep ??= Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories).Take(200000).ToArray();
+                        // prefer the same relative path, then any file with that name
+                        src = deep.FirstOrDefault(f => System.IO.Path.GetRelativePath(dir, f).Replace('\\', '/').EndsWith(rel.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase))
+                              ?? deep.FirstOrDefault(f => string.Equals(System.IO.Path.GetFileName(f), name, StringComparison.OrdinalIgnoreCase));
+                    }
+                    res.Add(new JsonObject { ["rel"] = rel, ["src"] = src, ["size"] = src != null ? new FileInfo(src).Length : null, ["gameSize"] = new FileInfo(p.Current(rel)).Length });
+                }
+                return J(res);
+            }
+            case "POST /api/file/replace":
+            {
+                var b = Body(r); var p = Store.Get(b["project"]!.ToString());
+                var pairs = (b["items"] as JsonArray)!.Select(x => (rel: p.CheckRel(x!["rel"]!.ToString()), src: x["src"]!.ToString())).ToList();
+                var job = Job.Start("file-replace", j => ReplaceFiles(p, j, pairs));
                 return J(new JsonObject { ["job"] = job.Id });
             }
         }
@@ -149,15 +190,54 @@ public static partial class Api
     static readonly HashSet<string> LooseExt = new(StringComparer.OrdinalIgnoreCase) { ".json", ".txt", ".csv", ".tsv", ".xml", ".lang", ".loc", ".ini", ".yaml", ".yml", ".po", ".strings", ".cfg", ".properties", ".bytes" };
     static readonly HashSet<string> SkipExt = new(StringComparer.OrdinalIgnoreCase) { ".dll", ".exe", ".pdb", ".png", ".jpg", ".wav", ".ogg", ".mp4", ".webm", ".bank", ".ress", ".resource", ".resS", ".so", ".dylib", ".log", ".jpeg", ".tga", ".bmp", ".gif", ".psd", ".mp3", ".flac", ".aiff", ".avi", ".mov", ".mkv", ".usm", ".zip", ".7z", ".rar", ".exr", ".dds", ".ktx" };
 
+    static object BuildLock(Project p) { lock (batchLock) { if (!indexBuild.TryGetValue(p.Id, out var o)) indexBuild[p.Id] = o = new(); return o; } }
+    static Dictionary<string, (long stamp, List<Cand> items)> IndexMap(Project p)
+    {
+        lock (batchLock)
+        {
+            if (!indexes.TryGetValue(p.Id, out var idx)) indexes[p.Id] = idx = new();
+            if (indexLoaded.Add(p.Id)) LoadIndex(p, idx);
+            return idx;
+        }
+    }
+    static string IndexFile(Project p) => System.IO.Path.Combine(p.WorkDir, "game-index.json");
+
+    /// <summary>What is indexed so far (instant). <paramref name="building"/> = an index build is running right now.</summary>
+    static List<Cand> IndexSnapshot(Project p, out bool building)
+    {
+        var idx = IndexMap(p); var bl = BuildLock(p);
+        building = !Monitor.TryEnter(bl); if (!building) Monitor.Exit(bl);
+        lock (batchLock) return idx.Values.SelectMany(v => v.items).ToList();
+    }
+    /// <summary>Builds the index unless another build is already running (then returns the partial one).</summary>
+    static List<Cand> TryIndex(Project p, out bool building)
+    {
+        var bl = BuildLock(p);
+        if (!Monitor.TryEnter(bl)) return IndexSnapshot(p, out building);
+        try { building = false; return IndexForLocked(p, null); } finally { Monitor.Exit(bl); }
+    }
+
     static List<Cand> IndexFor(Project p, Job? j)
     {
-        Dictionary<string, (long stamp, List<Cand> items)> idx;
-        lock (batchLock) { if (!indexes.TryGetValue(p.Id, out idx!)) indexes[p.Id] = idx = new(); }
+        var bl = BuildLock(p);
+        if (!Monitor.TryEnter(bl))
+        {
+            // another build (e.g. the «Інша ціль» dialog) is running: wait for it instead of reading every file twice
+            j?.Log("Індекс гри вже будується — чекаю…");
+            while (!Monitor.TryEnter(bl, 300)) { j?.Checkpoint(); if (j != null) j.Message = "Індекс гри вже будується…"; }
+        }
+        try { return IndexForLocked(p, j); } finally { Monitor.Exit(bl); }
+    }
+
+    static List<Cand> IndexForLocked(Project p, Job? j)
+    {
+        var idx = IndexMap(p);
         var files = Directory.EnumerateFiles(p.GameRoot, "*", SearchOption.AllDirectories).ToList();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        int changed = 0;
         for (int i = 0; i < files.Count; i++)
         {
-            j?.Checkpoint(); if (j != null) { j.Progress = 0.6 * i / files.Count; j.Message = "Індекс: " + System.IO.Path.GetFileName(files[i]); }
+            j?.Checkpoint(); if (j != null) { j.Progress = 0.6 * i / files.Count; j.Message = $"Індекс {i + 1}/{files.Count}: " + System.IO.Path.GetFileName(files[i]); }
             var f = files[i]; var rel = System.IO.Path.GetRelativePath(p.GameRoot, f); seen.Add(rel);
             var ext = System.IO.Path.GetExtension(f);
             if (SkipExt.Contains(ext)) continue;
@@ -181,12 +261,65 @@ public static partial class Api
             }
             else if (LooseExt.Contains(ext) || new FileInfo(f).Length <= 32 << 20) list.Add(new Cand { Rel = rel, Name = System.IO.Path.GetFileName(f), Loose = true, Type = "File", FileName = System.IO.Path.GetFileName(f) });
             lock (batchLock) idx[rel] = (stamp, list);
+            if (++changed % 500 == 0) SaveIndex(p, idx);   // a stopped scan keeps what it already read
         }
         lock (batchLock)
+            foreach (var k in idx.Keys.Where(k => !seen.Contains(k)).ToList()) { idx.Remove(k); changed++; }
+        if (changed > 0) SaveIndex(p, idx);
+        lock (batchLock) return idx.Values.SelectMany(v => v.items).ToList();
+    }
+
+    // the index is kept in the project folder, so the next start does not read all game files again
+    static void SaveIndex(Project p, Dictionary<string, (long stamp, List<Cand> items)> idx)
+    {
+        try
         {
-            foreach (var k in idx.Keys.Where(k => !seen.Contains(k)).ToList()) idx.Remove(k);
-            return idx.Values.SelectMany(v => v.items).ToList();
+            var root = new JsonObject();
+            lock (batchLock)
+                foreach (var (rel, e) in idx)
+                    root[rel] = new JsonObject
+                    {
+                        ["s"] = e.stamp,
+                        ["a"] = new JsonArray(e.items.Select(c => (JsonNode?)new JsonArray(c.Loose ? 1 : 0, c.File, c.PathId, c.TypeId, c.Type, c.Name, c.Script, c.FileName)).ToArray())
+                    };
+            Directory.CreateDirectory(p.WorkDir);
+            var tmp = IndexFile(p) + ".tmp";
+            File.WriteAllText(tmp, root.ToJsonString());
+            File.Move(tmp, IndexFile(p), true);
         }
+        catch (Exception e) { AppLog.Warn("Game index not saved: " + e.Message); }
+    }
+    static void LoadIndex(Project p, Dictionary<string, (long stamp, List<Cand> items)> idx)
+    {
+        try
+        {
+            if (!File.Exists(IndexFile(p))) return;
+            if (JsonNode.Parse(File.ReadAllText(IndexFile(p))) is not JsonObject root) return;
+            foreach (var (rel, n) in root)
+            {
+                if (n is not JsonObject e) continue;
+                var list = new List<Cand>();
+                foreach (var a in (e["a"] as JsonArray)!)
+                {
+                    var x = (JsonArray)a!;
+                    list.Add(new Cand { Rel = rel, Loose = x[0]!.GetValue<int>() == 1, File = x[1]!.GetValue<int>(), PathId = x[2]!.GetValue<long>(), TypeId = x[3]!.GetValue<int>(),
+                                        Type = x[4]!.ToString(), Name = x[5]!.ToString(), Script = x[6]?.ToString() ?? "", FileName = x[7]?.ToString() ?? "" });
+                }
+                idx[rel] = (e["s"]!.GetValue<long>(), list);
+            }
+        }
+        catch (Exception e) { idx.Clear(); AppLog.Warn("Game index ignored: " + e.Message); }
+    }
+
+    /// <summary>Target from a key without the index: «rel|file|pathId» of an asset or «L|rel» of a loose file.</summary>
+    static Cand? CandFromKey(Project p, string key)
+    {
+        if (key.StartsWith("L|")) { var rel = p.CheckRel(key[2..]); return File.Exists(p.GamePath(rel)) ? new Cand { Rel = rel, Loose = true, Type = "File", Name = System.IO.Path.GetFileName(rel), FileName = System.IO.Path.GetFileName(rel) } : null; }
+        var parts = key.Split('|'); if (parts.Length < 3) return null;
+        var r = p.CheckRel(string.Join("|", parts[..^2])); int file = int.Parse(parts[^2]); long pid = long.Parse(parts[^1]);
+        var u = Docs.Get(p, r).Unity; if (u == null) return null;
+        var a = u.ListAssets().FirstOrDefault(x => x.File == file && x.PathId == pid); if (a == null) return null;
+        return new Cand { Rel = r, File = a.File, PathId = a.PathId, TypeId = a.TypeId, Type = a.Type, Name = a.Name, Script = a.Script, FileName = System.IO.Path.GetFileName(u.Files[a.File].name) };
     }
 
     // ------------------------------------------------------------------ analysis
@@ -279,6 +412,13 @@ public static partial class Api
         {
             j.Checkpoint(); j.Progress = 0.6 + 0.4 * i / Math.Max(1, items.Count); j.Message = items[i].Name;
             var it = items[i];
+            if (it.Manual && (it.Target != null || it.NewRel != null))
+            {
+                // the user already chose the place by hand («Інша ціль…»): do not overwrite it with the automatic match
+                try { Detect(it); if (it.Target != null) { SetStatus(it); Compare(p, it); } } catch (Exception e) { it.Error = e.Message; it.Content = "error"; }
+                j.Log($"{it.Name}: ціль вибрано вручну → {(it.Target != null ? it.Target.Rel + " / " + it.Target.Name : it.NewRel)}");
+                continue;
+            }
             it.Error = null; it.Note = ""; it.Sample.Clear(); it.Stats = null; it.Content = ""; it.NewRel = null;
             try
             {
@@ -482,12 +622,11 @@ public static partial class Api
     }
 
     // ------------------------------------------------------------------ apply / report
-    static JsonNode? ApplyBatch(Project p, Job j, string mode, bool add, string lang)
+    static JsonNode? ApplyBatch(Project p, Job j, string mode, bool add, string lang, List<BItem> items, bool fromBatch, string title = "ІМПОРТ ФАЙЛІВ У ГРУ")
     {
-        var items = Batch(p).Where(i => i.Include).ToList();
         var rep = new StringBuilder();
         bool update = mode == "update";
-        rep.AppendLine($"ІМПОРТ ФАЙЛІВ У ГРУ — {(update ? "оновлення до актуальної версії" : "лише перевірка (файли гри не змінювались)")}");
+        rep.AppendLine($"{title} — {(update ? "оновлення до актуальної версії" : "лише перевірка (файли гри не змінювались)")}");
         rep.AppendLine($"Гра: {p.Name} ({p.GameRoot})");
         rep.AppendLine($"Дата: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
         if (update) rep.AppendLine($"Додавати записи, яких немає в актуальній версії: {(add ? "так" : "ні")}");
@@ -566,7 +705,7 @@ public static partial class Api
         var repName = $"import_{(update ? "update" : "check")}_{DateTime.Now:yyyyMMdd_HHmmss}.txt";
         File.WriteAllText(System.IO.Path.Combine(p.Reports, repName), rep.ToString(), new UTF8Encoding(true));
         AppLog.Info($"Batch import ({mode}): ok {ok}, skipped {skipped}, failed {failed}; report {repName}");
-        if (update) lock (batchLock) Batch(p).RemoveAll(x => x.Include && failed == 0);
+        if (update && fromBatch && failed == 0) lock (batchLock) Batch(p).RemoveAll(x => items.Contains(x));
         return new JsonObject
         {
             ["report"] = repName, ["ok"] = ok, ["skipped"] = skipped, ["failed"] = failed, ["saved"] = saved,
@@ -630,5 +769,116 @@ public static partial class Api
                 break;
             }
         }
+    }
+
+    // ------------------------------------------------------------------ manual search: whole files and many assets at once
+    /// <summary>Replaces game files (bundles, .assets, anything) with the user's files as a whole: the new file goes into
+    /// modified/ (the original is kept in original/), then «У гру» as usual. Addressables catalogs are patched for bundles.</summary>
+    static JsonNode ReplaceFiles(Project p, Job j, List<(string rel, string src)> pairs)
+    {
+        var saved = new JsonArray(); var catalogs = new List<string>(); int ok = 0, failed = 0;
+        for (int i = 0; i < pairs.Count; i++)
+        {
+            j.Checkpoint(); j.Progress = (double)i / pairs.Count; j.Message = pairs[i].rel;
+            var (rel, src) = pairs[i];
+            try
+            {
+                if (!File.Exists(src)) throw new Exception("Файл не знайдено: " + src);
+                var full = System.IO.Path.GetFullPath(src);
+                if (string.Equals(full, p.GamePath(rel), StringComparison.OrdinalIgnoreCase) || string.Equals(full, p.ModPath(rel), StringComparison.OrdinalIgnoreCase))
+                    throw new Exception("Вибрано той самий файл, що й у грі");
+                Docs.Close(p, rel);   // an open copy would write the old content back on the next save
+                if (File.Exists(p.GamePath(rel))) Store.BackupOriginal(p, rel);
+                var dst = p.ModPath(rel);
+                Directory.CreateDirectory(System.IO.Path.GetDirectoryName(dst)!);
+                File.Copy(full, dst, true);
+                File.SetAttributes(dst, FileAttributes.Normal);
+                j.Log($"✔ {rel} ← {full}");
+                AppLog.Info($"Replaced whole file: {rel} ← {full}");
+                if (Store.Settings.ReplaceInPlace) Store.ApplyToGame(p, rel);
+                foreach (var c in Store.PatchCatalogs(p, rel, j.Log)) if (!catalogs.Contains(c)) catalogs.Add(c);
+                saved.Add(rel); ok++;
+            }
+            catch (Exception e) { failed++; j.Log($"✖ {rel}: {e.Message}"); AppLog.Error($"replace {rel}: {e.Message}"); }
+        }
+        foreach (var c in catalogs) saved.Add(c);
+        return new JsonObject
+        {
+            ["ok"] = ok, ["failed"] = failed, ["saved"] = saved, ["catalogs"] = new JsonArray(catalogs.Select(c => (JsonNode?)c).ToArray()),
+            ["askApply"] = saved.Count > 0 && !Store.Settings.ReplaceInPlace && Store.Settings.AskBeforeReplace,
+            ["applied"] = Store.Settings.ReplaceInPlace
+        };
+    }
+
+    /// <summary>Many files into the assets selected in one bundle / .assets: each file goes to the selected asset with the same
+    /// name (or the same PathID in a UABEA/launcher file name); one file and one asset are matched directly. Same rules as
+    /// «Імпорт у гру» (dump, .dat, text, tables; other structure → brought to the current version) and a report.</summary>
+    static JsonObject ManualImport(JsonNode b)
+    {
+        var p = Store.Get(b["project"]!.ToString());
+        var rel = p.CheckRel(b["rel"]!.ToString());
+        var lang = b["lang"]?.ToString() ?? "uk";
+        var o = Docs.Get(p, rel);
+        var targets = new List<Cand>();
+        if (o.Unity == null) targets.Add(new Cand { Rel = rel, Loose = true, Type = "File", Name = System.IO.Path.GetFileName(rel), FileName = System.IO.Path.GetFileName(rel) });
+        else
+        {
+            var want = (b["targets"] as JsonArray)!.Select(x => (int.Parse(x!["file"]!.ToString()), long.Parse(x["pathId"]!.ToString()))).ToHashSet();
+            foreach (var a in o.Unity.ListAssets())
+                if (want.Contains((a.File, a.PathId)))
+                    targets.Add(new Cand { Rel = rel, File = a.File, PathId = a.PathId, TypeId = a.TypeId, Type = a.Type, Name = a.Name, Script = a.Script, FileName = System.IO.Path.GetFileName(o.Unity.Files[a.File].name) });
+        }
+        if (targets.Count == 0) throw new Exception("No assets selected");
+        var dir = System.IO.Path.Combine(Incoming(p), "manual"); Directory.CreateDirectory(dir);
+        var items = new List<BItem>();
+        foreach (var f in (b["files"] as JsonArray)!)
+        {
+            var name = System.IO.Path.GetFileName(f!["name"]!.ToString());
+            var data = Convert.FromBase64String(f["data"]!.ToString());
+            var path = System.IO.Path.Combine(dir, Guid.NewGuid().ToString("N")[..6] + "_" + name);
+            File.WriteAllBytes(path, data);
+            var it = new BItem { Name = name, Path = path, Size = data.Length, Manual = true };
+            try { Detect(it); } catch (Exception e) { it.Error = e.Message; }
+            items.Add(it);
+        }
+        // pair files and assets: best score first, each asset gets at most one file
+        var used = new HashSet<Cand>(); var matched = new List<BItem>();
+        if (items.Count == 1 && targets.Count == 1) { items[0].Target = Clone(targets[0]); items[0].Target!.Why = "вибрано вручну"; matched.Add(items[0]); }
+        else
+        {
+            var pairs = items.Where(i => i.Error == null)
+                .SelectMany(i => targets.Where(c => Compatible(i, c)).Select(c => (i, c, s: Score(i, c))))
+                .Where(x => x.s >= 0.98 || (x.i.PidHint != null && x.i.PidHint == x.c.PathId))
+                .OrderByDescending(x => x.s).ToList();
+            foreach (var (i, c, sc) in pairs)
+            {
+                if (i.Target != null || used.Contains(c)) continue;
+                i.Target = Clone(c); i.Target.Score = sc; i.Target.Why = sc >= 1.5 ? "те саме місце (файл і PathID)" : "та сама назва";
+                used.Add(c); matched.Add(i);
+            }
+        }
+        foreach (var i in matched) SetStatus(i);
+        var noFile = targets.Where(c => !matched.Any(i => i.Target!.Key == c.Key)).Select(c => c.Name == "" ? c.Type + " #" + c.PathId : c.Name).ToList();
+        var noPlace = items.Where(i => i.Target == null).Select(i => i.Name + (i.Error != null ? " (" + i.Error + ")" : "")).ToList();
+        var job = Job.Start("manual-import", j =>
+        {
+            j.Log($"Файлів: {items.Count}, вибрано ассетів: {targets.Count}, пар: {matched.Count}");
+            foreach (var n in noPlace) j.Log("⚠ без пари: " + n);
+            var res = (JsonObject)ApplyBatch(p, j, "update", true, lang, matched, false, "РУЧНИЙ ІМПОРТ У ВИБРАНІ АССЕТИ (" + rel + ")")!;
+            if (noPlace.Count > 0 || noFile.Count > 0)
+            {
+                var sb = new StringBuilder();
+                sb.AppendLine(); sb.AppendLine(new string('═', 78));
+                if (noPlace.Count > 0) { sb.AppendLine($"Файли без пари серед вибраних ассетів ({noPlace.Count}) — не імпортовано:"); foreach (var n in noPlace) sb.AppendLine("      " + n); }
+                if (noFile.Count > 0) { sb.AppendLine($"Вибрані ассети без файлу ({noFile.Count}) — не змінено:"); foreach (var n in noFile.Take(500)) sb.AppendLine("      " + n); }
+                File.AppendAllText(System.IO.Path.Combine(p.Reports, res["report"]!.ToString()), sb.ToString(), new UTF8Encoding(false));
+            }
+            foreach (var i in items) try { File.Delete(i.Path); } catch { }
+            res["noPlace"] = new JsonArray(noPlace.Select(n => (JsonNode?)n).ToArray());
+            res["noFile"] = noFile.Count;
+            res["matched"] = matched.Count;
+            return res;
+        });
+        return new JsonObject { ["job"] = job.Id, ["matched"] = matched.Count, ["noPlace"] = new JsonArray(noPlace.Select(n => (JsonNode?)n).ToArray()), ["noFile"] = noFile.Count };
     }
 }
